@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-cream text-ink antialiased;
+}
+
+h1,
+h2,
+h3 {
+  @apply font-display;
+}
+
+/* Alvo de toque mínimo em mobile, conforme critério de responsividade. */
+button,
+[role='button'],
+input,
+select,
+textarea {
+  min-height: 44px;
+}
+
+dialog {
+  margin: auto;
+}
+
+dialog::backdrop {
+  background: rgba(23, 21, 15, 0.45);
+}

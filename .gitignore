@@ -1,0 +1,33 @@
+# dependencies
+node_modules
+
+# build
+dist
+dist-ssr
+dev-dist
+
+# testing
+coverage
+
+# typescript
+*.tsbuildinfo
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# logs
+*.log
+npm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# env
+.env
+.env.local
+
+# claude
+.claude
