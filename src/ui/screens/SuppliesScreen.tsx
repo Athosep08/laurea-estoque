@@ -10,6 +10,7 @@ import { AdjustForm } from '../components/AdjustForm';
 
 type SuppliesScreenProps = {
   inventory: UseInventoryReturn;
+  isOnline: boolean;
 };
 
 type DialogState =
@@ -18,7 +19,7 @@ type DialogState =
   | { kind: 'purchase'; supply: Supply }
   | { kind: 'adjust'; supply: Supply };
 
-export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
+export function SuppliesScreen({ inventory, isOnline }: SuppliesScreenProps) {
   const { supplies } = inventory;
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
   const [actionError, setActionError] = useState<string | undefined>();
@@ -42,7 +43,9 @@ export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
         <button
           type="button"
           onClick={() => setDialog({ kind: 'form' })}
-          className="rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-ink/90"
+          disabled={!isOnline}
+          title={!isOnline ? 'Indisponível offline' : undefined}
+          className="rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-ink/90 disabled:opacity-50"
         >
           + Novo insumo
         </button>
@@ -69,21 +72,27 @@ export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
               <button
                 type="button"
                 onClick={() => setDialog({ kind: 'purchase', supply })}
-                className="rounded-md bg-ok/10 px-3 py-2 text-sm font-medium text-ok hover:bg-ok/20"
+                disabled={!isOnline}
+                title={!isOnline ? 'Indisponível offline' : undefined}
+                className="rounded-md bg-ok/10 px-3 py-2 text-sm font-medium text-ok hover:bg-ok/20 disabled:opacity-50"
               >
                 Registrar compra
               </button>
               <button
                 type="button"
                 onClick={() => setDialog({ kind: 'adjust', supply })}
-                className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream"
+                disabled={!isOnline}
+                title={!isOnline ? 'Indisponível offline' : undefined}
+                className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream disabled:opacity-50"
               >
                 Ajustar
               </button>
               <button
                 type="button"
                 onClick={() => setDialog({ kind: 'form', supply })}
-                className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream"
+                disabled={!isOnline}
+                title={!isOnline ? 'Indisponível offline' : undefined}
+                className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream disabled:opacity-50"
               >
                 Editar
               </button>
@@ -102,9 +111,9 @@ export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
             key={dialog.supply?.id ?? 'new'}
             supply={dialog.supply}
             onCancel={closeDialog}
-            onSubmit={(values) => {
+            onSubmit={async (values) => {
               const existing = dialog.supply;
-              inventory.saveSupply({
+              await inventory.saveSupply({
                 id: existing?.id ?? crypto.randomUUID(),
                 name: values.name,
                 unit: values.unit,
@@ -123,8 +132,8 @@ export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
           <PurchaseForm
             supply={dialog.supply}
             onCancel={closeDialog}
-            onSubmit={(values) => {
-              inventory.purchaseSupply({ supplyId: dialog.supply.id, ...values });
+            onSubmit={async (values) => {
+              await inventory.purchaseSupply({ supplyId: dialog.supply.id, ...values });
               closeDialog();
             }}
           />
@@ -137,8 +146,8 @@ export function SuppliesScreen({ inventory }: SuppliesScreenProps) {
             currentLabel={`${dialog.supply.name}. Em estoque: ${dialog.supply.quantity} ${dialog.supply.unit}.`}
             error={actionError}
             onCancel={closeDialog}
-            onSubmit={(values) => {
-              const result = inventory.adjust({
+            onSubmit={async (values) => {
+              const result = await inventory.adjust({
                 target: 'supply',
                 id: dialog.supply.id,
                 ...values,

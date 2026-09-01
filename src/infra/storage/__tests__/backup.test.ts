@@ -4,33 +4,33 @@ import { eraseAll, exportBackup, importBackup } from '../backup';
 import { makeProduct } from '../../../domain/__tests__/factories';
 
 describe('backup', () => {
-  it('exporta e reimporta o mesmo estado', () => {
+  it('exporta e reimporta o mesmo estado', async () => {
     const product = makeProduct({ id: 'p1' });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const json = exportBackup(repo);
+    const json = await exportBackup(repo);
 
     const restoredRepo = new InMemoryRepository();
-    const result = importBackup(restoredRepo, json);
+    const result = await importBackup(restoredRepo, json);
 
     expect(result).toEqual({ ok: true });
-    expect(restoredRepo.listProducts()).toEqual([product]);
+    expect(await restoredRepo.listProducts()).toEqual([product]);
   });
 
-  it('rejeita JSON inválido sem tocar no estado atual', () => {
+  it('rejeita JSON inválido sem tocar no estado atual', async () => {
     const product = makeProduct({ id: 'p1' });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const result = importBackup(repo, '{ inválido');
+    const result = await importBackup(repo, '{ inválido');
 
     expect(result).toEqual({ ok: false, reason: 'invalid_json' });
-    expect(repo.listProducts()).toEqual([product]);
+    expect(await repo.listProducts()).toEqual([product]);
   });
 
-  it('eraseAll limpa todas as coleções', () => {
+  it('eraseAll limpa todas as coleções', async () => {
     const repo = new InMemoryRepository({ products: [makeProduct()] });
-    eraseAll(repo);
-    expect(repo.getState()).toEqual({
+    await eraseAll(repo);
+    expect(await repo.getState()).toEqual({
       products: [],
       supplies: [],
       recipes: [],

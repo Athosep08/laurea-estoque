@@ -6,14 +6,15 @@ import type { UseInventoryReturn } from '../hooks/useInventory';
 type BackupScreenProps = {
   repository: EstoqueRepository;
   inventory: UseInventoryReturn;
+  isOnline: boolean;
 };
 
-export function BackupScreen({ repository, inventory }: BackupScreenProps) {
+export function BackupScreen({ repository, inventory, isOnline }: BackupScreenProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | undefined>();
 
-  function handleExport() {
-    const json = exportBackup(repository);
+  async function handleExport() {
+    const json = await exportBackup(repository);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -26,16 +27,16 @@ export function BackupScreen({ repository, inventory }: BackupScreenProps) {
 
   async function handleImportFile(file: File) {
     const text = await file.text();
-    const result = importBackup(repository, text);
+    const result = await importBackup(repository, text);
     if (result.ok) {
-      inventory.reload();
+      await inventory.reload();
       setMessage('Backup importado com sucesso.');
     } else {
       setMessage('Não foi possível importar: arquivo inválido.');
     }
   }
 
-  function handleEraseAll() {
+  async function handleEraseAll() {
     if (
       !window.confirm(
         'Apagar TODOS os dados (velas, insumos e histórico)? Esta ação não pode ser desfeita.',
@@ -43,8 +44,8 @@ export function BackupScreen({ repository, inventory }: BackupScreenProps) {
     ) {
       return;
     }
-    eraseAll(repository);
-    inventory.reload();
+    await eraseAll(repository);
+    await inventory.reload();
     setMessage('Todos os dados foram apagados.');
   }
 
@@ -85,7 +86,9 @@ export function BackupScreen({ repository, inventory }: BackupScreenProps) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md border border-taupe/40 px-4 py-2 font-medium text-ink hover:bg-cream"
+          disabled={!isOnline}
+          title={!isOnline ? 'Indisponível offline' : undefined}
+          className="rounded-md border border-taupe/40 px-4 py-2 font-medium text-ink hover:bg-cream disabled:opacity-50"
         >
           Escolher arquivo...
         </button>
@@ -99,7 +102,9 @@ export function BackupScreen({ repository, inventory }: BackupScreenProps) {
         <button
           type="button"
           onClick={handleEraseAll}
-          className="rounded-md bg-alert px-4 py-2 font-medium text-paper hover:bg-alert/90"
+          disabled={!isOnline}
+          title={!isOnline ? 'Indisponível offline' : undefined}
+          className="rounded-md bg-alert px-4 py-2 font-medium text-paper hover:bg-alert/90 disabled:opacity-50"
         >
           Apagar tudo
         </button>

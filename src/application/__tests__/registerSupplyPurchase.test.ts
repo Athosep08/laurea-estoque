@@ -6,20 +6,23 @@ import { makeSupply } from '../../domain/__tests__/factories';
 const deps = { now: () => new Date('2026-09-01T12:00:00.000Z'), generateId: () => 'movement-1' };
 
 describe('registerSupplyPurchase (caso de uso)', () => {
-  it('soma a quantidade comprada e grava o movimento', () => {
+  it('soma a quantidade comprada e grava o movimento', async () => {
     const supply = makeSupply({ id: 's1', quantity: 2 });
     const repo = new InMemoryRepository({ supplies: [supply] });
 
-    const result = registerSupplyPurchase(repo, { supplyId: 's1', quantity: 3.5 }, deps);
+    const result = await registerSupplyPurchase(repo, { supplyId: 's1', quantity: 3.5 }, deps);
 
     expect(result.ok).toBe(true);
-    expect(repo.listSupplies()[0].quantity).toBe(5.5);
-    expect(repo.listMovements()[0]).toMatchObject({ type: 'supply_purchase', quantity: 3.5 });
+    expect((await repo.listSupplies())[0].quantity).toBe(5.5);
+    expect((await repo.listMovements())[0]).toMatchObject({
+      type: 'supply_purchase',
+      quantity: 3.5,
+    });
   });
 
-  it('falha quando o insumo não existe', () => {
+  it('falha quando o insumo não existe', async () => {
     const repo = new InMemoryRepository();
-    const result = registerSupplyPurchase(repo, { supplyId: 'missing', quantity: 1 }, deps);
+    const result = await registerSupplyPurchase(repo, { supplyId: 'missing', quantity: 1 }, deps);
     expect(result).toEqual({ ok: false, reason: 'supply_not_found' });
   });
 });

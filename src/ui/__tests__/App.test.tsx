@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import App from '../../App';
+import { AppShell } from '../../App';
+import { InMemoryRepository } from '../../infra/storage/InMemoryRepository';
 
 async function createProduct(options: {
   model: string;
@@ -11,7 +12,7 @@ async function createProduct(options: {
   minQuantity: string;
 }) {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: '+ Nova vela' }));
+  await user.click(await screen.findByRole('button', { name: '+ Nova vela' }));
 
   const dialog = await screen.findByRole('dialog', { name: 'Nova vela' });
   await user.type(within(dialog).getByLabelText('Modelo'), options.model);
@@ -26,13 +27,9 @@ async function createProduct(options: {
 }
 
 describe('fluxo de venda na tela de Velas', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
   it('cadastra uma vela e registra uma venda, debitando o estoque', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<AppShell repository={new InMemoryRepository()} onSignOut={() => {}} />);
 
     await createProduct({
       model: 'Clássica Liso 90g',
@@ -56,7 +53,7 @@ describe('fluxo de venda na tela de Velas', () => {
   });
 
   it('mostra o alerta de estoque baixo quando a quantidade atinge o mínimo', async () => {
-    render(<App />);
+    render(<AppShell repository={new InMemoryRepository()} onSignOut={() => {}} />);
 
     await createProduct({
       model: 'Recipiente Fosco 200g',

@@ -1,5 +1,24 @@
 import type { Movement, Product, Recipe, Supply } from '../../domain/models';
+import type {
+  AdjustStockInput,
+  AdjustStockResult,
+  OperationDeps,
+  RegisterProductionInput,
+  RegisterProductionResult,
+  RegisterSaleInput,
+  RegisterSaleResult,
+  RegisterSupplyPurchaseInput,
+  RegisterSupplyPurchaseResult,
+  UndoMovementResult,
+} from '../../domain/operations';
 import type { EstoqueRepository, EstoqueState } from './EstoqueRepository';
+import {
+  applyAdjustStock,
+  applyRegisterProduction,
+  applyRegisterSale,
+  applyRegisterSupplyPurchase,
+  applyUndoMovement,
+} from './localMutations';
 import { createEmptyState, migrate, toPersisted } from './schema';
 
 const STORAGE_KEY = 'laurea-estoque';
@@ -20,11 +39,11 @@ export class LocalStorageRepository implements EstoqueRepository {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersisted(state)));
   }
 
-  listProducts(): Product[] {
+  async listProducts(): Promise<Product[]> {
     return this.read().products;
   }
 
-  saveProduct(product: Product): void {
+  async saveProduct(product: Product): Promise<void> {
     const state = this.read();
     const exists = state.products.some((p) => p.id === product.id);
     const products = exists
@@ -33,11 +52,11 @@ export class LocalStorageRepository implements EstoqueRepository {
     this.write({ ...state, products });
   }
 
-  listSupplies(): Supply[] {
+  async listSupplies(): Promise<Supply[]> {
     return this.read().supplies;
   }
 
-  saveSupply(supply: Supply): void {
+  async saveSupply(supply: Supply): Promise<void> {
     const state = this.read();
     const exists = state.supplies.some((s) => s.id === supply.id);
     const supplies = exists
@@ -46,11 +65,11 @@ export class LocalStorageRepository implements EstoqueRepository {
     this.write({ ...state, supplies });
   }
 
-  listRecipes(): Recipe[] {
+  async listRecipes(): Promise<Recipe[]> {
     return this.read().recipes;
   }
 
-  saveRecipe(recipe: Recipe): void {
+  async saveRecipe(recipe: Recipe): Promise<void> {
     const state = this.read();
     const exists = state.recipes.some((r) => r.id === recipe.id);
     const recipes = exists
@@ -59,26 +78,58 @@ export class LocalStorageRepository implements EstoqueRepository {
     this.write({ ...state, recipes });
   }
 
-  listMovements(): Movement[] {
+  async listMovements(): Promise<Movement[]> {
     return this.read().movements;
   }
 
-  appendMovement(movement: Movement): void {
-    const state = this.read();
-    this.write({ ...state, movements: [...state.movements, movement] });
+  async registerSale(
+    input: RegisterSaleInput,
+    deps: OperationDeps = {},
+  ): Promise<RegisterSaleResult> {
+    const { state, result } = applyRegisterSale(this.read(), input, deps);
+    if (result.ok) this.write(state);
+    return result;
   }
 
-  updateMovement(movement: Movement): void {
-    const state = this.read();
-    const movements = state.movements.map((m) => (m.id === movement.id ? movement : m));
-    this.write({ ...state, movements });
+  async registerProduction(
+    input: RegisterProductionInput,
+    deps: OperationDeps = {},
+  ): Promise<RegisterProductionResult> {
+    const { state, result } = applyRegisterProduction(this.read(), input, deps);
+    if (result.ok) this.write(state);
+    return result;
   }
 
-  getState(): EstoqueState {
+  async registerSupplyPurchase(
+    input: RegisterSupplyPurchaseInput,
+    deps: OperationDeps = {},
+  ): Promise<RegisterSupplyPurchaseResult> {
+    const { state, result } = applyRegisterSupplyPurchase(this.read(), input, deps);
+    if (result.ok) this.write(state);
+    return result;
+  }
+
+  async adjustStock(input: AdjustStockInput, deps: OperationDeps = {}): Promise<AdjustStockResult> {
+    const { state, result } = applyAdjustStock(this.read(), input, deps);
+    if (result.ok) this.write(state);
+    return result;
+  }
+
+  async undoMovement(movementId: string): Promise<UndoMovementResult> {
+    const { state, result } = applyUndoMovement(this.read(), movementId);
+    if (result.ok) this.write(state);
+    return result;
+  }
+
+  async getState(): Promise<EstoqueState> {
     return this.read();
   }
 
-  replaceState(state: EstoqueState): void {
+  async replaceState(state: EstoqueState): Promise<void> {
     this.write(state);
+  }
+
+  async eraseAll(): Promise<void> {
+    this.write(createEmptyState());
   }
 }

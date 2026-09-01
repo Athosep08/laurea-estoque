@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Movement, MovementType } from '../../domain/models';
+import type { MonthlyReport } from '../../domain/report';
 import { formatBRL } from '../../domain/money';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 
 type ReportScreenProps = {
   inventory: UseInventoryReturn;
+  isOnline: boolean;
 };
 
 const MOVEMENT_LABELS: Record<MovementType, string> = {
@@ -19,12 +21,23 @@ function currentYearMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function ReportScreen({ inventory }: ReportScreenProps) {
-  const { products, supplies, undo, report } = inventory;
+export function ReportScreen({ inventory, isOnline }: ReportScreenProps) {
+  const { products, supplies, movements, undo, report } = inventory;
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
+  const [data, setData] = useState<MonthlyReport | undefined>();
 
   const [year, month] = yearMonth.split('-').map(Number);
-  const data = useMemo(() => report(year, month), [report, year, month]);
+
+  useEffect(() => {
+    let cancelled = false;
+    report(year, month).then((result) => {
+      if (!cancelled) setData(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `movements` dispara refetch após qualquer venda/produção/ajuste/desfazer.
+  }, [report, year, month, movements]);
 
   function movementSubject(movement: Movement): string {
     if (movement.productId) {
@@ -38,14 +51,22 @@ export function ReportScreen({ inventory }: ReportScreenProps) {
     return '—';
   }
 
-  function handleUndo(movement: Movement) {
+  async function handleUndo(movement: Movement) {
     if (!window.confirm('Desfazer este movimento? O efeito no estoque será revertido.')) {
       return;
     }
-    const result = undo(movement.id);
+    const result = await undo(movement.id);
     if (!result.ok) {
       window.alert(describeUndoError(result));
     }
+  }
+
+  if (!data) {
+    return (
+      <section>
+        <p className="text-taupe">Carregando relatório...</p>
+      </section>
+    );
   }
 
   return (
@@ -141,7 +162,9 @@ export function ReportScreen({ inventory }: ReportScreenProps) {
             <button
               type="button"
               onClick={() => handleUndo(movement)}
-              className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-alert hover:bg-alert/10"
+              disabled={!isOnline}
+              title={!isOnline ? 'Indisponível offline' : undefined}
+              className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-alert hover:bg-alert/10 disabled:opacity-50"
             >
               Desfazer
             </button>

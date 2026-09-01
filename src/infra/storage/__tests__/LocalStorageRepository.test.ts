@@ -1,57 +1,66 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LocalStorageRepository } from '../LocalStorageRepository';
-import { makeProduct, makeMovement } from '../../../domain/__tests__/factories';
+import { makeProduct } from '../../../domain/__tests__/factories';
 
 describe('LocalStorageRepository', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
-  it('começa vazio quando não há nada salvo', () => {
+  it('começa vazio quando não há nada salvo', async () => {
     const repo = new LocalStorageRepository();
-    expect(repo.listProducts()).toEqual([]);
-    expect(repo.listMovements()).toEqual([]);
+    expect(await repo.listProducts()).toEqual([]);
+    expect(await repo.listMovements()).toEqual([]);
   });
 
-  it('persiste e recupera um produto entre instâncias', () => {
+  it('persiste e recupera um produto entre instâncias', async () => {
     const product = makeProduct({ id: 'p1' });
-    new LocalStorageRepository().saveProduct(product);
+    await new LocalStorageRepository().saveProduct(product);
 
     const repo2 = new LocalStorageRepository();
-    expect(repo2.listProducts()).toEqual([product]);
+    expect(await repo2.listProducts()).toEqual([product]);
   });
 
-  it('atualiza um produto existente em vez de duplicar', () => {
+  it('atualiza um produto existente em vez de duplicar', async () => {
     const repo = new LocalStorageRepository();
     const product = makeProduct({ id: 'p1', quantity: 5 });
-    repo.saveProduct(product);
-    repo.saveProduct({ ...product, quantity: 9 });
+    await repo.saveProduct(product);
+    await repo.saveProduct({ ...product, quantity: 9 });
 
-    expect(repo.listProducts()).toEqual([{ ...product, quantity: 9 }]);
+    expect(await repo.listProducts()).toEqual([{ ...product, quantity: 9 }]);
   });
 
-  it('acrescenta movimentos sem sobrescrever os anteriores', () => {
+  it('acrescenta movimentos sem sobrescrever os anteriores', async () => {
     const repo = new LocalStorageRepository();
-    const m1 = makeMovement({ id: 'm1' });
-    const m2 = makeMovement({ id: 'm2' });
-    repo.appendMovement(m1);
-    repo.appendMovement(m2);
+    const product = makeProduct({ id: 'p1', quantity: 10 });
+    await repo.saveProduct(product);
 
-    expect(repo.listMovements()).toEqual([m1, m2]);
+    await repo.registerSale({ productId: 'p1', quantity: 1 });
+    await repo.registerSale({ productId: 'p1', quantity: 1 });
+
+    const movements = await repo.listMovements();
+    expect(movements).toHaveLength(2);
+    expect(movements.map((m) => m.type)).toEqual(['sale', 'sale']);
   });
 
-  it('marca um movimento como desfeito via updateMovement', () => {
+  it('marca um movimento como desfeito via undoMovement', async () => {
     const repo = new LocalStorageRepository();
-    const movement = makeMovement({ id: 'm1', undone: false });
-    repo.appendMovement(movement);
-    repo.updateMovement({ ...movement, undone: true });
+    const product = makeProduct({ id: 'p1', quantity: 10 });
+    await repo.saveProduct(product);
 
-    expect(repo.listMovements()).toEqual([{ ...movement, undone: true }]);
+    const sale = await repo.registerSale({ productId: 'p1', quantity: 1 });
+    if (!sale.ok) throw new Error('esperava sucesso');
+
+    const result = await repo.undoMovement(sale.movement.id);
+    expect(result).toEqual({ ok: true });
+
+    const movements = await repo.listMovements();
+    expect(movements.find((m) => m.id === sale.movement.id)?.undone).toBe(true);
   });
 
-  it('ignora JSON corrompido e volta a um estado vazio', () => {
+  it('ignora JSON corrompido e volta a um estado vazio', async () => {
     window.localStorage.setItem('laurea-estoque', '{ isto não é json');
     const repo = new LocalStorageRepository();
-    expect(repo.listProducts()).toEqual([]);
+    expect(await repo.listProducts()).toEqual([]);
   });
 });

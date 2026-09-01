@@ -6,11 +6,11 @@ import { makeProduct } from '../../domain/__tests__/factories';
 const deps = { now: () => new Date('2026-09-01T12:00:00.000Z'), generateId: () => 'movement-1' };
 
 describe('registerSale (caso de uso)', () => {
-  it('debita o estoque, grava o movimento e sugere o total pelo preço do produto', () => {
+  it('debita o estoque, grava o movimento e sugere o total pelo preço do produto', async () => {
     const product = makeProduct({ id: 'p1', quantity: 5, priceCents: 3590 });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const result = registerSale(repo, { productId: 'p1', quantity: 2 }, deps);
+    const result = await registerSale(repo, { productId: 'p1', quantity: 2 }, deps);
 
     expect(result).toEqual({
       ok: true,
@@ -25,15 +25,19 @@ describe('registerSale (caso de uso)', () => {
         undone: false,
       },
     });
-    expect(repo.listProducts()[0].quantity).toBe(3);
-    expect(repo.listMovements()).toHaveLength(1);
+    expect((await repo.listProducts())[0].quantity).toBe(3);
+    expect(await repo.listMovements()).toHaveLength(1);
   });
 
-  it('permite editar o total sugerido (desconto, combo, pedido exclusivo)', () => {
+  it('permite editar o total sugerido (desconto, combo, pedido exclusivo)', async () => {
     const product = makeProduct({ id: 'p1', quantity: 5, priceCents: 3590 });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const result = registerSale(repo, { productId: 'p1', quantity: 2, totalCents: 6000 }, deps);
+    const result = await registerSale(
+      repo,
+      { productId: 'p1', quantity: 2, totalCents: 6000 },
+      deps,
+    );
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -41,18 +45,18 @@ describe('registerSale (caso de uso)', () => {
     }
   });
 
-  it('falha sem alterar o estoque quando o produto não existe', () => {
+  it('falha sem alterar o estoque quando o produto não existe', async () => {
     const repo = new InMemoryRepository();
-    const result = registerSale(repo, { productId: 'missing', quantity: 1 }, deps);
+    const result = await registerSale(repo, { productId: 'missing', quantity: 1 }, deps);
     expect(result).toEqual({ ok: false, reason: 'product_not_found' });
-    expect(repo.listMovements()).toHaveLength(0);
+    expect(await repo.listMovements()).toHaveLength(0);
   });
 
-  it('falha sem alterar nada quando pede mais do que há em estoque', () => {
+  it('falha sem alterar nada quando pede mais do que há em estoque', async () => {
     const product = makeProduct({ id: 'p1', quantity: 1 });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const result = registerSale(repo, { productId: 'p1', quantity: 5 }, deps);
+    const result = await registerSale(repo, { productId: 'p1', quantity: 5 }, deps);
 
     expect(result).toEqual({
       ok: false,
@@ -60,7 +64,7 @@ describe('registerSale (caso de uso)', () => {
       available: 1,
       requested: 5,
     });
-    expect(repo.listProducts()[0].quantity).toBe(1);
-    expect(repo.listMovements()).toHaveLength(0);
+    expect((await repo.listProducts())[0].quantity).toBe(1);
+    expect(await repo.listMovements()).toHaveLength(0);
   });
 });

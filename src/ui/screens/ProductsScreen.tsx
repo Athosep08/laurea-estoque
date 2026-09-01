@@ -12,6 +12,7 @@ import { AdjustForm } from '../components/AdjustForm';
 
 type ProductsScreenProps = {
   inventory: UseInventoryReturn;
+  isOnline: boolean;
 };
 
 type DialogState =
@@ -21,7 +22,7 @@ type DialogState =
   | { kind: 'produce'; product: Product }
   | { kind: 'adjust'; product: Product };
 
-export function ProductsScreen({ inventory }: ProductsScreenProps) {
+export function ProductsScreen({ inventory, isOnline }: ProductsScreenProps) {
   const { products, supplies, recipes } = inventory;
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
   const [actionError, setActionError] = useState<string | undefined>();
@@ -39,7 +40,9 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
         <button
           type="button"
           onClick={() => setDialog({ kind: 'form' })}
-          className="rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-ink/90"
+          disabled={!isOnline}
+          title={!isOnline ? 'Indisponível offline' : undefined}
+          className="rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-ink/90 disabled:opacity-50"
         >
           + Nova vela
         </button>
@@ -73,28 +76,36 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
                     <button
                       type="button"
                       onClick={() => setDialog({ kind: 'sell', product })}
-                      className="rounded-md bg-ok/10 px-3 py-2 text-sm font-medium text-ok hover:bg-ok/20"
+                      disabled={!isOnline}
+                      title={!isOnline ? 'Indisponível offline' : undefined}
+                      className="rounded-md bg-ok/10 px-3 py-2 text-sm font-medium text-ok hover:bg-ok/20 disabled:opacity-50"
                     >
                       Vender
                     </button>
                     <button
                       type="button"
                       onClick={() => setDialog({ kind: 'produce', product })}
-                      className="rounded-md bg-gold/10 px-3 py-2 text-sm font-medium text-gold hover:bg-gold/20"
+                      disabled={!isOnline}
+                      title={!isOnline ? 'Indisponível offline' : undefined}
+                      className="rounded-md bg-gold/10 px-3 py-2 text-sm font-medium text-gold hover:bg-gold/20 disabled:opacity-50"
                     >
                       Produzir
                     </button>
                     <button
                       type="button"
                       onClick={() => setDialog({ kind: 'adjust', product })}
-                      className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream"
+                      disabled={!isOnline}
+                      title={!isOnline ? 'Indisponível offline' : undefined}
+                      className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream disabled:opacity-50"
                     >
                       Ajustar
                     </button>
                     <button
                       type="button"
                       onClick={() => setDialog({ kind: 'form', product })}
-                      className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream"
+                      disabled={!isOnline}
+                      title={!isOnline ? 'Indisponível offline' : undefined}
+                      className="rounded-md px-3 py-2 text-sm font-medium text-taupe hover:bg-cream disabled:opacity-50"
                     >
                       Editar
                     </button>
@@ -118,13 +129,13 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
             recipe={recipes.find((r) => r.id === dialog.product?.recipeId)}
             supplies={supplies}
             onCancel={closeDialog}
-            onSubmit={(values) => {
+            onSubmit={async (values) => {
               const existing = dialog.product;
               let recipeId = existing?.recipeId;
 
               if (values.recipeItems.length > 0) {
                 recipeId = recipeId ?? crypto.randomUUID();
-                inventory.saveRecipe({
+                await inventory.saveRecipe({
                   id: recipeId,
                   name: `${values.model} — ficha técnica`,
                   items: values.recipeItems,
@@ -133,7 +144,7 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
                 recipeId = undefined;
               }
 
-              inventory.saveProduct({
+              await inventory.saveProduct({
                 id: existing?.id ?? crypto.randomUUID(),
                 model: values.model,
                 scent: values.scent,
@@ -156,8 +167,8 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
             product={dialog.product}
             error={actionError}
             onCancel={closeDialog}
-            onSubmit={(values) => {
-              const result = inventory.sell({ productId: dialog.product.id, ...values });
+            onSubmit={async (values) => {
+              const result = await inventory.sell({ productId: dialog.product.id, ...values });
               if (result.ok) {
                 closeDialog();
               } else if (result.reason === 'insufficient_stock') {
@@ -178,8 +189,8 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
             product={dialog.product}
             error={actionError}
             onCancel={closeDialog}
-            onSubmit={(values) => {
-              const result = inventory.produce({ productId: dialog.product.id, ...values });
+            onSubmit={async (values) => {
+              const result = await inventory.produce({ productId: dialog.product.id, ...values });
               if (result.ok) {
                 closeDialog();
               } else if (result.reason === 'missing_supplies') {
@@ -204,8 +215,8 @@ export function ProductsScreen({ inventory }: ProductsScreenProps) {
             currentLabel={`${dialog.product.model} — ${dialog.product.scent}. Em estoque: ${dialog.product.quantity}.`}
             error={actionError}
             onCancel={closeDialog}
-            onSubmit={(values) => {
-              const result = inventory.adjust({
+            onSubmit={async (values) => {
+              const result = await inventory.adjust({
                 target: 'product',
                 id: dialog.product.id,
                 ...values,

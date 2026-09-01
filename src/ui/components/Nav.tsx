@@ -10,9 +10,10 @@ const ITEMS: { id: Screen; label: string; icon: string }[] = [
 type NavProps = {
   current: Screen;
   onChange: (screen: Screen) => void;
+  onSignOut?: () => void;
 };
 
-export function Nav({ current, onChange }: NavProps) {
+export function Nav({ current, onChange, onSignOut }: NavProps) {
   return (
     <nav aria-label="Navegação principal">
       {/* Mobile: abas fixas na base */}
@@ -55,6 +56,15 @@ export function Nav({ current, onChange }: NavProps) {
             </li>
           ))}
         </ul>
+        {onSignOut && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="mt-auto rounded-md px-3 py-2 text-left text-sm font-medium text-taupe hover:bg-cream"
+          >
+            Sair
+          </button>
+        )}
       </div>
     </nav>
   );

@@ -6,7 +6,7 @@ import { makeProduct, makeRecipe, makeSupply } from '../../domain/__tests__/fact
 const deps = { now: () => new Date('2026-09-01T12:00:00.000Z'), generateId: () => 'movement-1' };
 
 describe('registerProduction (caso de uso)', () => {
-  it('produz, baixa insumos pela ficha técnica e grava o consumo no movimento', () => {
+  it('produz, baixa insumos pela ficha técnica e grava o consumo no movimento', async () => {
     const wax = makeSupply({ id: 'wax', quantity: 5 });
     const recipe = makeRecipe({ id: 'r1', items: [{ supplyId: 'wax', quantityPerUnit: 0.18 }] });
     const product = makeProduct({ id: 'p1', quantity: 0, recipeId: 'r1' });
@@ -16,17 +16,17 @@ describe('registerProduction (caso de uso)', () => {
       supplies: [wax],
     });
 
-    const result = registerProduction(repo, { productId: 'p1', quantity: 10 }, deps);
+    const result = await registerProduction(repo, { productId: 'p1', quantity: 10 }, deps);
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.movement.consumed).toEqual([{ supplyId: 'wax', quantity: 1.8 }]);
     }
-    expect(repo.listProducts()[0].quantity).toBe(10);
-    expect(repo.listSupplies()[0].quantity).toBeCloseTo(3.2);
+    expect((await repo.listProducts())[0].quantity).toBe(10);
+    expect((await repo.listSupplies())[0].quantity).toBeCloseTo(3.2);
   });
 
-  it('falha sem aplicar efeito quando falta insumo, e não grava movimento', () => {
+  it('falha sem aplicar efeito quando falta insumo, e não grava movimento', async () => {
     const wax = makeSupply({ id: 'wax', quantity: 1 });
     const recipe = makeRecipe({ id: 'r1', items: [{ supplyId: 'wax', quantityPerUnit: 0.18 }] });
     const product = makeProduct({ id: 'p1', quantity: 0, recipeId: 'r1' });
@@ -36,25 +36,25 @@ describe('registerProduction (caso de uso)', () => {
       supplies: [wax],
     });
 
-    const result = registerProduction(repo, { productId: 'p1', quantity: 10 }, deps);
+    const result = await registerProduction(repo, { productId: 'p1', quantity: 10 }, deps);
 
     expect(result).toEqual({
       ok: false,
       reason: 'missing_supplies',
       missing: [{ supplyId: 'wax', required: 1.8, available: 1 }],
     });
-    expect(repo.listProducts()[0].quantity).toBe(0);
-    expect(repo.listSupplies()[0].quantity).toBe(1);
-    expect(repo.listMovements()).toHaveLength(0);
+    expect((await repo.listProducts())[0].quantity).toBe(0);
+    expect((await repo.listSupplies())[0].quantity).toBe(1);
+    expect(await repo.listMovements()).toHaveLength(0);
   });
 
-  it('produto sem ficha técnica soma sem tocar insumos', () => {
+  it('produto sem ficha técnica soma sem tocar insumos', async () => {
     const product = makeProduct({ id: 'p1', quantity: 0, recipeId: undefined });
     const repo = new InMemoryRepository({ products: [product] });
 
-    const result = registerProduction(repo, { productId: 'p1', quantity: 4 }, deps);
+    const result = await registerProduction(repo, { productId: 'p1', quantity: 4 }, deps);
 
     expect(result.ok).toBe(true);
-    expect(repo.listProducts()[0].quantity).toBe(4);
+    expect((await repo.listProducts())[0].quantity).toBe(4);
   });
 });
