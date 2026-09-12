@@ -16,9 +16,10 @@ PWA de controle de estoque para a L'AUREA Aromas (velas artesanais, Chapecó/SC)
 
 1. Crie um projeto em [supabase.com](https://supabase.com/). Na tela de criação, mantenha **"Enable Data API"** marcado, **desmarque "Automatically expose new tables"** e **marque "Enable automatic RLS"**.
 2. Abra o **SQL Editor** do projeto, cole o conteúdo de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) e rode. Isso cria as tabelas, RLS, grants e as funções RPC que fazem as mutações de estoque de forma atômica (ver "Decisões de arquitetura" abaixo).
-3. Vá em **Authentication → Users → Add user**, crie o e-mail/senha compartilhado que os dois dispositivos vão usar para logar, e marque **"Auto Confirm User"**.
-4. Em **Settings (ícone de engrenagem) → API**, copie a **Project URL** e a chave **`anon` `public`** (nunca a `service_role`).
-5. Copie `.env.example` para `.env.local` e preencha:
+3. Ainda no **SQL Editor**, rode [`supabase/migrations/0002_carga_inicial.sql`](supabase/migrations/0002_carga_inicial.sql). Isso cadastra os 24 insumos reais (cera de coco, as 14 essências, pavio, ilhós, os três frascos, adesivos, sacola e caixa) e os 42 produtos (3 modelos × 14 aromas), cada um com a sua ficha técnica. Os IDs são determinísticos, então rodar duas vezes não duplica nada. **Antes de rodar, preencha os preços dos três modelos no topo do arquivo** — o script aborta sem gravar nada se algum preço estiver zerado.
+4. Vá em **Authentication → Users → Add user**, crie o e-mail/senha compartilhado que os dois dispositivos vão usar para logar, e marque **"Auto Confirm User"**.
+5. Em **Settings (ícone de engrenagem) → API**, copie a **Project URL** e a chave **`anon` `public`** (nunca a `service_role`).
+6. Copie `.env.example` para `.env.local` e preencha:
    ```
    VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
    VITE_SUPABASE_ANON_KEY=<sua-chave-anon>
