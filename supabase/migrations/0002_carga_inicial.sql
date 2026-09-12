@@ -19,8 +19,8 @@
 --
 -- IDs são derivados de md5 do nome, então rodar duas vezes não duplica nada.
 --
--- ANTES DE RODAR: preencher os preços em `seed_modelos`. O script aborta sem
--- gravar nada se algum preço estiver zerado.
+-- O script aborta sem gravar nada se algum preço em `seed_modelos` estiver
+-- zerado.
 
 begin;
 
@@ -36,11 +36,15 @@ create temp table seed_modelos (
   price_cents integer not null
 ) on commit drop;
 
+-- Nomes e preços são os da landing page (laurea_prod/index.html), que é o
+-- catálogo que o cliente vê e usa para pedir pelo WhatsApp. O stakeholder
+-- chamou os modelos de "90", "200g liso" e "200g refinado"; aqui o
+-- "200g liso" é o Recipiente Fosco.
 -- Preço é o mesmo para qualquer aroma; só muda pelo frasco.
 insert into seed_modelos values
-  ('90g',           'Frasco 90g (com tampa)', 80,  10, 0),  -- TODO preço (em centavos)
-  ('200g liso',     'Frasco 200g liso',       180, 20, 0),  -- TODO preço (em centavos)
-  ('200g refinado', 'Frasco 200g refinado',   180, 20, 0);  -- TODO preço (em centavos)
+  ('Clássica Liso 90g',        'Frasco 90g liso (com tampa)', 80,  10, 3590),
+  ('Recipiente Fosco 200g',    'Frasco 200g fosco',           180, 20, 6590),
+  ('Recipiente Refinado 200g', 'Frasco 200g canelado',        180, 20, 7590);
 
 -- Estoque de essência em gramas, contado em 2026-09-09.
 create temp table seed_aromas (
@@ -115,7 +119,7 @@ on conflict (id) do nothing;
 
 insert into recipes (id, name)
 select md5('laurea:recipe:' || m.modelo || ':' || a.aroma)::uuid,
-       'Vela ' || m.modelo || ' ' || a.aroma || ' — ficha técnica'
+       m.modelo || ' ' || a.aroma || ' — ficha técnica'
 from seed_modelos m
 cross join seed_aromas a
 on conflict (id) do nothing;
@@ -143,7 +147,7 @@ on conflict (recipe_id, supply_id) do nothing;
 
 insert into products (id, model, scent, price_cents, quantity, min_quantity, recipe_id, active)
 select md5('laurea:product:' || m.modelo || ':' || a.aroma)::uuid,
-       'Vela ' || m.modelo,
+       m.modelo,
        a.aroma,
        m.price_cents,
        0,

@@ -3,7 +3,7 @@
 | Rodada | Enviada | Status |
 |---|---|---|
 | 1ª — 20 perguntas | 2026-09-09 | Respondida em 2026-09-09 (Mateus) |
-| 2ª — pendências abaixo | — | **A enviar** |
+| 2ª — 13 pendências abaixo | — | **A enviar** |
 
 O resultado da 1ª rodada está em
 [`supabase/migrations/0002_carga_inicial.sql`](../supabase/migrations/0002_carga_inicial.sql).
@@ -13,28 +13,37 @@ Os valores que ainda faltam estão marcados com `-- TODO` nesse arquivo.
 
 ## 2ª rodada — o que ainda falta
 
-### Bloqueia rodar o seed
+Os preços não precisam mais ser perguntados: saíram da landing page
+(ver "Fontes complementares" no fim). Comparar a landing com as respostas
+dele levantou três dúvidas novas de catálogo, que são as primeiras abaixo.
 
-1. **Preço de venda de cada modelo.** Já sabemos que o preço não muda com o aroma, só com o frasco. Faltam os valores:
-   - [ ] Vela 90g: R$
-   - [ ] Vela 200g liso: R$
-   - [ ] Vela 200g refinado: R$
+### Catálogo
+
+1. O que você chama de **"200g liso"** é o **Recipiente Fosco** da landing page?
+   - [ ] Resposta:
+   - _(Na landing, "Liso" é o nome da vela de 90g, e as de 200g são "Fosco" e "Refinado". O seed já assume que 200g liso = Fosco.)_
+2. Na landing, **"Capim Limão e Alecrim"** é um aroma só. É uma vela feita com as duas essências juntas? Se for, quanto vai de cada uma?
+   - [ ] Resposta:
+   - _(Se for uma mistura, vira um produto que consome duas essências, e não duas velas separadas como está hoje no seed.)_
+3. **Apple Cake, Coco e Santal** não aparecem na landing. Viraram velas novas, ou essas essências são para outra coisa (pedido exclusivo, home spray)?
+   - [ ] Resposta:
+   - _(O seed hoje cria vela nos três modelos para todas as 14 essências. As que não forem vela ficam só como insumo.)_
 
 ### Bloqueia a primeira produção
 
 Sem esses números o estoque desses insumos começa em zero, e o sistema recusa qualquer produção por falta de pavio, frasco etc. (testado).
 
-2. Quantos tem hoje de:
+4. Quantos tem hoje de:
    - [ ] Pavio:
    - [ ] Ilhós médio:
-   - [ ] Frasco 90g (com tampa):
-   - [ ] Frasco 200g liso:
-   - [ ] Frasco 200g refinado:
+   - [ ] Frasco 90g liso (com tampa):
+   - [ ] Frasco 200g fosco:
+   - [ ] Frasco 200g canelado:
    - [ ] Adesivo da vela:
    - [ ] Adesivo da sacola:
    - [ ] Sacola:
    - [ ] Caixa:
-3. O estoque de essência veio até o Alecrim. **Faltam 5 aromas.** A lista foi cortada ou esses estão zerados?
+5. O estoque de essência veio até o Alecrim. **Faltam 5 aromas**:
    - [ ] Capim Limão: g
    - [ ] Bergamota: g
    - [ ] Vanilla Prime: g
@@ -43,27 +52,33 @@ Sem esses números o estoque desses insumos começa em zero, e o sistema recusa 
 
 ### Carga inicial e alertas
 
-4. Quantas velas prontas têm hoje, por modelo e aroma?
+6. Quantas velas prontas têm hoje, por modelo e aroma?
    - [ ] Resposta:
-5. A partir de qual quantidade querem ser **avisados** de que um insumo está acabando? (ex.: "me avisa quando a cera chegar em 2 kg")
+7. A partir de qual quantidade querem ser **avisados** de que um insumo está acabando? (ex.: "me avisa quando a cera chegar em 2 kg")
    - [ ] Resposta:
 
 ### Confirmações rápidas
 
-6. O pavio rende duas velas **também no frasco de 200g**, ou isso vale só para o 90g?
+8. O pavio rende duas velas **também no frasco de 200g**, ou isso vale só para o 90g?
    - [ ] Resposta:
    - _(Hoje a ficha usa 0,5 pavio por vela nos três modelos.)_
-7. O adesivo da vela é colado **quando a vela fica pronta** ou só na hora da venda?
+9. O adesivo da vela é colado **quando a vela fica pronta** ou só na hora da venda?
    - [ ] Resposta:
    - _(Hoje ele sai do estoque na produção. Se for colado só na venda, sai da ficha técnica.)_
-8. Numa venda de 3 velas, vai **1 sacola** (ou caixa) ou uma por vela?
-   - [ ] Resposta:
-9. Quando compram essência (frasco de 100 ml ou 250 ml), o **peso em gramas** vem no rótulo?
-   - [ ] Resposta:
-   - _(O sistema controla essência em gramas, e cada essência tem um peso diferente por ml. Na hora de registrar a compra vai precisar do peso: ou pelo rótulo, ou pesando o frasco.)_
-10. A sacola tem **tamanho único**? E a caixa?
+10. Numa venda de 3 velas, vai **1 sacola** (ou caixa) ou uma por vela?
+    - [ ] Resposta:
+11. Quando compram essência (frasco de 100 ml ou 250 ml), o **peso em gramas** vem no rótulo?
+    - [ ] Resposta:
+    - _(O sistema controla essência em gramas, e cada essência tem um peso diferente por ml. Na hora de registrar a compra vai precisar do peso: ou pelo rótulo, ou pesando o frasco.)_
+12. A sacola tem **tamanho único**? E a caixa?
     - [ ] Resposta:
     - _(Estava na 1ª rodada e ficou sem resposta. Se tiver mais de um tamanho, cada tamanho vira um insumo separado.)_
+
+### Pedidos exclusivos (baixa prioridade)
+
+13. A landing oferece, nos pedidos exclusivos, **cor do recipiente, laço e rótulo personalizado**. Corante, laço e rótulo personalizado são insumos que vocês querem controlar no sistema também?
+    - [ ] Resposta:
+    - _(Na 1ª rodada ele disse que não falta insumo na lista, então pode ser que isso seja comprado sob encomenda. Não bloqueia nada.)_
 
 ---
 
@@ -110,3 +125,16 @@ Sem esses números o estoque desses insumos começa em zero, e o sistema recusa 
 | Adesivo da vela **na** ficha técnica | Vai colado na vela produzida (a confirmar, pergunta 7) |
 | Sacola, caixa e adesivo da sacola **fora** da ficha, com baixa manual | São consumidos na venda, e o app só dá baixa automática na produção |
 | Sem margem de perda na ficha | Perda é pequena, e eles pesam antes |
+
+## Fontes complementares
+
+**Landing page** (`laurea_prod/index.html`, versão de 2026-09-01, feita para o cliente):
+
+| Modelo na landing | Tamanho | Frasco | Preço |
+|---|---|---|---|
+| Vela Clássica Liso | 90g | Vidro transparente liso | R$ 35,90 |
+| Vela Recipiente Fosco | 200g | Vidro fosco jateado | R$ 65,90 |
+| Vela Recipiente Refinado | 200g | Canelado refinado | R$ 75,90 |
+
+- Os preços confirmam a resposta dele ("preço igual independente do aroma, só altera conforme o tipo de frasco") e foram usados no seed.
+- A landing lista **10 fragrâncias**: Bergamota, Flor de Laranjeira, Flor de Figo, Canela, Bamboo, Cereja e Avelã, Vanilla, Café, Capim Limão e Alecrim, Lavanda. A resposta dele (09/09, mais recente) lista 14 essências. As diferenças são as perguntas 2 e 3.
