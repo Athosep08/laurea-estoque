@@ -7,3 +7,13 @@
 export function roundQuantity(value: number): number {
   return Math.round(value * 1e6) / 1e6;
 }
+
+const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
+
+/**
+ * Formata uma quantidade para exibição, ex.: 11840 -> '11.840', 9.5 -> '9,5'.
+ * Arredonda antes para não exibir resíduo de ponto flutuante.
+ */
+export function formatQuantity(value: number): string {
+  return quantityFormatter.format(roundQuantity(value));
+}

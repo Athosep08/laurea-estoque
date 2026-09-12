@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { Product } from '../../domain/models';
 import { isLowStock } from '../../domain/inventory';
 import { formatBRL } from '../../domain/money';
+import { formatQuantity } from '../../domain/quantity';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 import { Dialog } from '../components/Dialog';
 import { LowStockBadge } from '../components/LowStockBadge';
+import { Field, inputClassName } from '../components/Field';
 import { ProductForm } from '../components/ProductForm';
 import { SellForm } from '../components/SellForm';
 import { ProduceForm } from '../components/ProduceForm';
@@ -26,8 +28,10 @@ export function ProductsScreen({ inventory, isOnline }: ProductsScreenProps) {
   const { products, supplies, recipes } = inventory;
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
   const [actionError, setActionError] = useState<string | undefined>();
+  const [query, setQuery] = useState('');
 
-  const grouped = groupByModel(products);
+  const visible = products.filter((product) => matchesQuery(product, query));
+  const grouped = groupByModel(visible);
   const closeDialog = () => {
     setDialog({ kind: 'none' });
     setActionError(undefined);
@@ -50,6 +54,24 @@ export function ProductsScreen({ inventory, isOnline }: ProductsScreenProps) {
 
       {products.length === 0 && (
         <p className="text-taupe">Nenhuma vela cadastrada ainda. Comece criando uma.</p>
+      )}
+
+      {products.length > 0 && (
+        <Field label="Buscar vela" htmlFor="product-search">
+          <input
+            id="product-search"
+            type="search"
+            className={inputClassName}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Aroma ou modelo, ex.: lavanda"
+            autoComplete="off"
+          />
+        </Field>
+      )}
+
+      {products.length > 0 && visible.length === 0 && (
+        <p className="text-taupe">Nenhuma vela encontrada para “{query.trim()}”.</p>
       )}
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -198,7 +220,7 @@ export function ProductsScreen({ inventory, isOnline }: ProductsScreenProps) {
                   const supply = supplies.find((s) => s.id === m.supplyId);
                   const name = supply?.name ?? m.supplyId;
                   const unit = supply?.unit ?? '';
-                  return `${name}: faltam ${(m.required - m.available).toFixed(2)} ${unit}`;
+                  return `${name}: faltam ${formatQuantity(m.required - m.available)} ${unit}`;
                 });
                 setActionError(`Insumo insuficiente:\n${lines.join('\n')}`);
               } else {
@@ -234,6 +256,23 @@ export function ProductsScreen({ inventory, isOnline }: ProductsScreenProps) {
       </Dialog>
     </section>
   );
+}
+
+/** Minúsculas e sem acento, para "cafe" achar "Café". */
+function normalize(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+/** Cada palavra da busca precisa aparecer, em qualquer ordem: "lavanda fosco". */
+function matchesQuery(product: Product, query: string): boolean {
+  const haystack = normalize(`${product.scent} ${product.model}`);
+  return normalize(query)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word));
 }
 
 function groupByModel(products: Product[]): Map<string, Product[]> {

@@ -67,3 +67,69 @@ describe('fluxo de venda na tela de Velas', () => {
     expect(within(card).getByText('Estoque baixo')).toBeInTheDocument();
   });
 });
+
+describe('busca na tela de Velas', () => {
+  function renderWithCatalog() {
+    const product = (id: string, model: string, scent: string) => ({
+      id,
+      model,
+      scent,
+      priceCents: 3590,
+      quantity: 5,
+      minQuantity: 0,
+      active: true,
+      createdAt: '2026-09-11T00:00:00.000Z',
+    });
+    const repository = new InMemoryRepository({
+      products: [
+        product('p1', 'Clássica Liso 90g', 'Café'),
+        product('p2', 'Clássica Liso 90g', 'Lavanda'),
+        product('p3', 'Recipiente Fosco 200g', 'Café'),
+        product('p4', 'Recipiente Fosco 200g', 'Flor de Figo'),
+      ],
+    });
+    render(<AppShell repository={repository} onSignOut={() => {}} />);
+  }
+
+  it('filtra por aroma ignorando acento e maiúsculas', async () => {
+    const user = userEvent.setup();
+    renderWithCatalog();
+
+    await user.type(await screen.findByLabelText('Buscar vela'), 'CAFE');
+
+    expect(screen.getAllByText('Café')).toHaveLength(2);
+    expect(screen.queryByText('Lavanda')).not.toBeInTheDocument();
+    expect(screen.queryByText('Flor de Figo')).not.toBeInTheDocument();
+  });
+
+  it('filtra por modelo e esconde os grupos sem resultado', async () => {
+    const user = userEvent.setup();
+    renderWithCatalog();
+
+    await user.type(await screen.findByLabelText('Buscar vela'), 'fosco');
+
+    expect(screen.getByRole('heading', { name: 'Recipiente Fosco 200g' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Clássica Liso 90g' })).not.toBeInTheDocument();
+    expect(screen.getByText('Flor de Figo')).toBeInTheDocument();
+  });
+
+  it('combina aroma e modelo em qualquer ordem', async () => {
+    const user = userEvent.setup();
+    renderWithCatalog();
+
+    await user.type(await screen.findByLabelText('Buscar vela'), 'fosco cafe');
+
+    expect(screen.getAllByText('Café')).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Recipiente Fosco 200g' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Clássica Liso 90g' })).not.toBeInTheDocument();
+  });
+
+  it('avisa quando nenhuma vela corresponde à busca', async () => {
+    const user = userEvent.setup();
+    renderWithCatalog();
+
+    await user.type(await screen.findByLabelText('Buscar vela'), 'santal');
+
+    expect(screen.getByText('Nenhuma vela encontrada para “santal”.')).toBeInTheDocument();
+  });
+});

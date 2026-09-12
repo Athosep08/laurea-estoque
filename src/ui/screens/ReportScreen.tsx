@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Movement, MovementType } from '../../domain/models';
 import type { MonthlyReport } from '../../domain/report';
 import { formatBRL } from '../../domain/money';
+import { formatQuantity } from '../../domain/quantity';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 
 type ReportScreenProps = {
@@ -154,7 +155,8 @@ export function ReportScreen({ inventory, isOnline }: ReportScreenProps) {
                 {MOVEMENT_LABELS[movement.type]} — {movementSubject(movement)}
               </p>
               <p className="text-sm text-taupe">
-                {new Date(movement.occurredAt).toLocaleString('pt-BR')} · qtd. {movement.quantity}
+                {new Date(movement.occurredAt).toLocaleString('pt-BR')} · qtd.{' '}
+                {formatQuantity(movement.quantity)}
                 {movement.totalCents !== undefined ? ` · ${formatBRL(movement.totalCents)}` : ''}
                 {movement.note ? ` · ${movement.note}` : ''}
               </p>

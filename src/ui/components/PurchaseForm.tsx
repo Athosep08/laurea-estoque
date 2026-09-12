@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Supply } from '../../domain/models';
+import { formatQuantity } from '../../domain/quantity';
 import { Field, inputClassName } from './Field';
 
 type PurchaseFormProps = {
@@ -27,7 +28,7 @@ export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <p className="mb-4 text-sm text-taupe">
-        {supply.name}. Em estoque: {supply.quantity} {supply.unit}.
+        {supply.name}. Em estoque: {formatQuantity(supply.quantity)} {supply.unit}.
       </p>
 
       <Field label={`Quantidade comprada (${supply.unit})`} htmlFor="purchase-quantity">

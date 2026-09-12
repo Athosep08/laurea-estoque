@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Supply } from '../../domain/models';
 import { isLowStock } from '../../domain/inventory';
+import { formatQuantity } from '../../domain/quantity';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 import { Dialog } from '../components/Dialog';
 import { LowStockBadge } from '../components/LowStockBadge';
@@ -66,7 +67,8 @@ export function SuppliesScreen({ inventory, isOnline }: SuppliesScreenProps) {
               {isLowStock(supply) && <LowStockBadge />}
             </div>
             <p className="mb-3 text-2xl font-display">
-              {supply.quantity} <span className="text-sm text-taupe">{supply.unit}</span>
+              {formatQuantity(supply.quantity)}{' '}
+              <span className="text-sm text-taupe">{supply.unit}</span>
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -143,7 +145,7 @@ export function SuppliesScreen({ inventory, isOnline }: SuppliesScreenProps) {
       <Dialog open={dialog.kind === 'adjust'} title="Ajuste manual" onClose={closeDialog}>
         {dialog.kind === 'adjust' && (
           <AdjustForm
-            currentLabel={`${dialog.supply.name}. Em estoque: ${dialog.supply.quantity} ${dialog.supply.unit}.`}
+            currentLabel={`${dialog.supply.name}. Em estoque: ${formatQuantity(dialog.supply.quantity)} ${dialog.supply.unit}.`}
             error={actionError}
             onCancel={closeDialog}
             onSubmit={async (values) => {
