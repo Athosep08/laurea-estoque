@@ -89,6 +89,13 @@ alter table products enable row level security;
 alter table movements enable row level security;
 alter table consumed_supplies enable row level security;
 
+drop policy if exists "authenticated_all" on recipes;
+drop policy if exists "authenticated_all" on recipe_items;
+drop policy if exists "authenticated_all" on supplies;
+drop policy if exists "authenticated_all" on products;
+drop policy if exists "authenticated_all" on movements;
+drop policy if exists "authenticated_all" on consumed_supplies;
+
 create policy "authenticated_all" on recipes for all to authenticated using (true) with check (true);
 create policy "authenticated_all" on recipe_items for all to authenticated using (true) with check (true);
 create policy "authenticated_all" on supplies for all to authenticated using (true) with check (true);
