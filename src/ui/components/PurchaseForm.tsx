@@ -1,19 +1,34 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Supply } from '../../domain/models';
+import { formatBRL, parseReaisInput } from '../../domain/money';
 import { formatQuantity } from '../../domain/quantity';
 import { Field, inputClassName } from './Field';
 
 type PurchaseFormProps = {
   supply: Supply;
-  onSubmit: (values: { quantity: number; note?: string }) => void;
+  onSubmit: (values: { quantity: number; totalCents?: number; note?: string }) => void;
   onCancel: () => void;
 };
 
+/** Grama e mililitro dão custos minúsculos (R$ 0,18 por g); por kg e por L se lê melhor. */
+function unitCostLabel(totalCents: number, quantity: number, unit: Supply['unit']): string {
+  if (unit === 'g') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por kg`;
+  if (unit === 'ml') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por L`;
+  return `${formatBRL(Math.round(totalCents / quantity))} por ${unit}`;
+}
+
 export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) {
   const [quantity, setQuantity] = useState(0);
+  const [paid, setPaid] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | undefined>();
+
+  const paidCents = parseReaisInput(paid);
+  const unitCost =
+    paidCents !== undefined && paidCents > 0 && quantity > 0
+      ? unitCostLabel(paidCents, quantity, supply.unit)
+      : undefined;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -21,8 +36,12 @@ export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) 
       setError('Informe uma quantidade maior que zero.');
       return;
     }
+    if (Number.isNaN(paidCents)) {
+      setError('Valor pago inválido. Use só números, ex.: 180,00.');
+      return;
+    }
     setError(undefined);
-    onSubmit({ quantity, note: note.trim() || undefined });
+    onSubmit({ quantity, totalCents: paidCents, note: note.trim() || undefined });
   }
 
   return (
@@ -44,12 +63,31 @@ export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) 
         />
       </Field>
 
+      <Field label="Valor pago (R$, opcional)" htmlFor="purchase-paid">
+        <input
+          id="purchase-paid"
+          inputMode="decimal"
+          autoComplete="off"
+          className={inputClassName}
+          value={paid}
+          onChange={(e) => setPaid(e.target.value)}
+          placeholder="ex.: 180,00"
+          aria-describedby="purchase-paid-hint"
+        />
+        <p id="purchase-paid-hint" className="mt-1 text-xs text-taupe">
+          {unitCost
+            ? `Sai a ${unitCost}.`
+            : 'É daqui que sai o relatório de gastos. Deixe vazio se foi brinde.'}
+        </p>
+      </Field>
+
       <Field label="Observação (opcional)" htmlFor="purchase-note">
         <input
           id="purchase-note"
           className={inputClassName}
           value={note}
           onChange={(e) => setNote(e.target.value)}
+          placeholder="Fornecedor, nota fiscal..."
         />
       </Field>
 

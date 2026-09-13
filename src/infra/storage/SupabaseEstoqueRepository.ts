@@ -294,6 +294,7 @@ export class SupabaseEstoqueRepository implements EstoqueRepository {
     const { data, error } = await this.client.rpc('register_supply_purchase', {
       p_supply_id: input.supplyId,
       p_quantity: input.quantity,
+      p_total_cents: input.totalCents ?? null,
       p_note: input.note ?? null,
     });
     if (error) {

@@ -125,4 +125,32 @@ describe('getMonthlyReport', () => {
     const report = getMonthlyReport(2020, 1, movements, [product]);
     expect(report.totalSold).toBe(1);
   });
+
+  it('não conta o valor pago em compra de insumo como faturamento', () => {
+    const product = makeProduct({ id: 'p1', priceCents: 3590 });
+    const report = getMonthlyReport(
+      2026,
+      9,
+      [
+        makeMovement({
+          type: 'sale',
+          productId: 'p1',
+          quantity: 1,
+          totalCents: 3590,
+          occurredAt: '2026-09-10T12:00:00.000Z',
+        }),
+        makeMovement({
+          type: 'supply_purchase',
+          productId: undefined,
+          supplyId: 's1',
+          quantity: 1000,
+          totalCents: 18000,
+          occurredAt: '2026-09-10T13:00:00.000Z',
+        }),
+      ],
+      [product],
+    );
+
+    expect(report.totalRevenueCents).toBe(3590);
+  });
 });

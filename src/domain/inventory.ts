@@ -64,6 +64,14 @@ export function receiveProduction(product: Product, quantity: number): Product {
 }
 
 /** Registra a compra/entrada de um insumo. */
+/** Valor pago numa entrada: centavos inteiros, zero é permitido (brinde). */
+export function assertPurchaseCost(totalCents: number | undefined): void {
+  if (totalCents === undefined) return;
+  if (!Number.isInteger(totalCents) || totalCents < 0) {
+    throw new Error('O valor pago deve ser zero ou maior, em centavos inteiros.');
+  }
+}
+
 export function purchaseSupply(supply: Supply, quantity: number): Supply {
   assertPositive(quantity, 'A quantidade comprada');
   return { ...supply, quantity: roundQuantity(supply.quantity + quantity) };

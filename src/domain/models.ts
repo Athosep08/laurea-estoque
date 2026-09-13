@@ -50,7 +50,7 @@ export type Movement = {
   productId?: UUID; // production | sale | adjustment de produto
   supplyId?: UUID; // supply_purchase | adjustment de insumo
   quantity: number; // SEMPRE positivo; o tipo define o sinal
-  totalCents?: Cents; // apenas em 'sale'
+  totalCents?: Cents; // 'sale': valor recebido; 'supply_purchase': valor pago (opcional)
   consumed?: ConsumedSupply[]; // apenas em 'production', para permitir desfazer
   note?: string;
   undone: boolean; // soft delete — histórico não se apaga

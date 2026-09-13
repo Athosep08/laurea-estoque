@@ -181,6 +181,39 @@ describe('Início: lançamentos', () => {
     expect(screen.getByText('Agora tem 1.500 g de cera de coco.')).toBeInTheDocument();
   });
 
+  it('registra o valor pago na entrada e mostra o custo por kg', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Entrada de insumo/ }));
+    await user.click(screen.getByRole('button', { name: /Cera de coco/ }));
+    await user.clear(screen.getByLabelText('Quantidade comprada (g)'));
+    await user.type(screen.getByLabelText('Quantidade comprada (g)'), '2000');
+    await user.type(screen.getByLabelText('Valor pago (R$, opcional)'), '360,00');
+
+    expect(screen.getByText('Sai a R$ 180,00 por kg.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Registrar compra' }));
+
+    expect(await screen.findByRole('heading', { name: 'Entrada registrada' })).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s360,00/)).toBeInTheDocument();
+  });
+
+  it('recusa valor pago que não é número', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Entrada de insumo/ }));
+    await user.click(screen.getByRole('button', { name: /Cera de coco/ }));
+    await user.clear(screen.getByLabelText('Quantidade comprada (g)'));
+    await user.type(screen.getByLabelText('Quantidade comprada (g)'), '500');
+    await user.type(screen.getByLabelText('Valor pago (R$, opcional)'), 'cento e oitenta');
+    await user.click(screen.getByRole('button', { name: 'Registrar compra' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Valor pago inválido');
+    expect(screen.queryByRole('heading', { name: 'Entrada registrada' })).not.toBeInTheDocument();
+  });
+
   it('o aviso de estoque baixo leva para o Estoque', async () => {
     const user = userEvent.setup();
     renderApp();

@@ -20,6 +20,40 @@ describe('registerSupplyPurchase (caso de uso)', () => {
     });
   });
 
+  it('grava o valor pago quando informado', async () => {
+    const repo = new InMemoryRepository({ supplies: [makeSupply({ id: 's1', quantity: 0 })] });
+
+    await registerSupplyPurchase(repo, { supplyId: 's1', quantity: 1000, totalCents: 18000 }, deps);
+
+    expect((await repo.listMovements())[0]).toMatchObject({
+      type: 'supply_purchase',
+      quantity: 1000,
+      totalCents: 18000,
+    });
+  });
+
+  it('aceita entrada sem valor pago (brinde ou valor desconhecido)', async () => {
+    const repo = new InMemoryRepository({ supplies: [makeSupply({ id: 's1' })] });
+
+    await registerSupplyPurchase(repo, { supplyId: 's1', quantity: 5 }, deps);
+
+    expect((await repo.listMovements())[0].totalCents).toBeUndefined();
+  });
+
+  it('recusa valor pago negativo ou com fração de centavo, sem mexer no estoque', async () => {
+    const repo = new InMemoryRepository({ supplies: [makeSupply({ id: 's1', quantity: 2 })] });
+
+    await expect(
+      registerSupplyPurchase(repo, { supplyId: 's1', quantity: 1, totalCents: -100 }, deps),
+    ).rejects.toThrow('valor pago');
+    await expect(
+      registerSupplyPurchase(repo, { supplyId: 's1', quantity: 1, totalCents: 10.5 }, deps),
+    ).rejects.toThrow('valor pago');
+
+    expect((await repo.listSupplies())[0].quantity).toBe(2);
+    expect(await repo.listMovements()).toHaveLength(0);
+  });
+
   it('falha quando o insumo não existe', async () => {
     const repo = new InMemoryRepository();
     const result = await registerSupplyPurchase(repo, { supplyId: 'missing', quantity: 1 }, deps);

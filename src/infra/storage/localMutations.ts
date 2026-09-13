@@ -2,6 +2,7 @@ import type { Movement } from '../../domain/models';
 import {
   adjustProductQuantity,
   adjustSupplyQuantity,
+  assertPurchaseCost,
   purchaseSupply,
   reverseProduction,
   reverseProductAdjustment,
@@ -119,6 +120,7 @@ export function applyRegisterSupplyPurchase(
   const supply = state.supplies.find((s) => s.id === input.supplyId);
   if (!supply) return { state, result: { ok: false, reason: 'supply_not_found' } };
 
+  assertPurchaseCost(input.totalCents);
   const updated = purchaseSupply(supply, input.quantity);
 
   const movement: Movement = {
@@ -127,6 +129,7 @@ export function applyRegisterSupplyPurchase(
     occurredAt: now().toISOString(),
     supplyId: supply.id,
     quantity: input.quantity,
+    totalCents: input.totalCents,
     note: input.note,
     undone: false,
   };

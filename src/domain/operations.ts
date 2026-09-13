@@ -38,6 +38,8 @@ export type RegisterProductionResult =
 export type RegisterSupplyPurchaseInput = {
   supplyId: UUID;
   quantity: number;
+  /** Quanto foi pago por essa entrada. Opcional: brinde ou valor desconhecido. */
+  totalCents?: Cents;
   note?: string;
 };
 
