@@ -35,6 +35,18 @@ Celular / navegador
 
 Tudo no painel do projeto em [supabase.com](https://supabase.com/dashboard).
 
+### 1.0 Se aparecer "Project is paused"
+
+O plano gratuito pausa o projeto depois de 7 dias sem nenhum acesso. Os dados
+continuam lá.
+
+- [ ] Clique em **Resume project** (não precisa do Upgrade) e espere de 2 a
+      5 minutos, até o painel normal voltar.
+
+Com o app em uso diário isso não acontece; o risco é só em períodos parados,
+como antes do lançamento. Se o app aparecer fora do ar depois de um tempo sem
+uso, é isso: entre no painel e clique em Resume de novo.
+
 ### 1.1 Descobrir o que já foi aplicado
 
 No **SQL Editor**, rode:
