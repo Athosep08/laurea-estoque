@@ -8,6 +8,9 @@ import { useInventory } from './ui/hooks/useInventory';
 import type { EstoqueRepository } from './infra/storage/EstoqueRepository';
 import { LocalStorageRepository } from './infra/storage/LocalStorageRepository';
 import { createDemoState } from './infra/storage/demoSeed';
+import { workbookToBlob } from './infra/export/xlsxWorkbook';
+import type { WorkbookModel } from './application/reportWorkbook';
+import { saveBlob } from './ui/saveFile';
 import { LoginScreen } from './ui/screens/LoginScreen';
 import { HomeScreen } from './ui/screens/HomeScreen';
 import { StockScreen } from './ui/screens/StockScreen';
@@ -103,10 +106,18 @@ const WIDTH: Record<Screen, string> = {
   backup: 'max-w-4xl',
 };
 
+/** Gera o .xlsx e entrega no aparelho. Os testes passam uma versão falsa. */
+export type SaveWorkbook = (model: WorkbookModel) => Promise<void>;
+
+const saveWorkbookAsXlsx: SaveWorkbook = async (model) => {
+  await saveBlob(await workbookToBlob(model), model.fileName);
+};
+
 type AppShellProps = {
   repository: EstoqueRepository;
   onSignOut?: () => void;
   banner?: ReactNode;
+  saveWorkbook?: SaveWorkbook;
 };
 
 /**
@@ -115,7 +126,12 @@ type AppShellProps = {
  * contra a porta `EstoqueRepository`, do mesmo jeito que `application/` já
  * é testado com `InMemoryRepository` em vez do adapter real.
  */
-export function AppShell({ repository, onSignOut, banner }: AppShellProps) {
+export function AppShell({
+  repository,
+  onSignOut,
+  banner,
+  saveWorkbook = saveWorkbookAsXlsx,
+}: AppShellProps) {
   const [screen, setScreen] = useState<Screen>('home');
   // Tocar em "Início" estando no meio de um lançamento volta para os quadrados.
   const [homeKey, setHomeKey] = useState(0);
@@ -157,7 +173,9 @@ export function AppShell({ repository, onSignOut, banner }: AppShellProps) {
                 />
               )}
               {screen === 'stock' && <StockScreen inventory={inventory} isOnline={isOnline} />}
-              {screen === 'report' && <ReportScreen inventory={inventory} isOnline={isOnline} />}
+              {screen === 'report' && (
+                <ReportScreen inventory={inventory} isOnline={isOnline} onExport={saveWorkbook} />
+              )}
               {screen === 'backup' && (
                 <BackupScreen repository={repository} inventory={inventory} isOnline={isOnline} />
               )}

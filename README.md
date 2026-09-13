@@ -60,6 +60,14 @@ O cálculo fica em [`src/domain/reports.ts`](src/domain/reports.ts), em funçõe
 - **Custo de insumo** é a média ponderada do que foi pago nas entradas com valor, de todo o histórico. Insumo sem nenhuma entrada com valor aparece como "sem custo" — o relatório não inventa número.
 - **Categoria de insumo** (Cera, Essências, Frascos, Montagem, Embalagem) é deduzida do nome, porque o cadastro não tem esse campo.
 
+### Exportar para Excel
+
+O botão **Baixar relatório completo (Excel)**, no início dos relatórios, gera um `.xlsx` com todas as abas (Resumo, Vendas, Por vela, Produção, Insumos usados, Entradas de insumo, Gastos por insumo, Saídas por motivo, Perdas e brindes, Estoque de velas e Estoque de insumos). Dentro de cada relatório, **Exportar para Excel** gera só as abas daquele relatório. Os dois respeitam o período escolhido, que também vai no nome do arquivo (`laurea-vendas-2026-08.xlsx`).
+
+- Dinheiro vai como **número** com formato de real, não como texto, para dar para somar e filtrar no Excel.
+- O conteúdo da planilha é montado em [`src/application/reportWorkbook.ts`](src/application/reportWorkbook.ts), sem biblioteca; o arquivo é gravado em [`src/infra/export/xlsxWorkbook.ts`](src/infra/export/xlsxWorkbook.ts) com [`write-excel-file`](https://www.npmjs.com/package/write-excel-file), carregada só na hora de exportar.
+- No iPhone com o app instalado na tela inicial, o arquivo vai pelo menu de compartilhar do sistema (salvar em Arquivos, WhatsApp...), porque lá o download direto não funciona de forma confiável.
+
 ## Decisões de arquitetura
 
 O projeto segue **arquitetura hexagonal (ports & adapters)**, organizada em quatro camadas com fronteiras estritas:

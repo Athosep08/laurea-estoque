@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AppShell } from '../../App';
+import { AppShell, type SaveWorkbook } from '../../App';
 import { InMemoryRepository } from '../../infra/storage/InMemoryRepository';
 import type { Movement, Product, Supply } from '../../domain/models';
 
@@ -37,7 +37,7 @@ const movement = (fields: Omit<Movement, 'id' | 'undone'>): Movement => ({
   ...fields,
 });
 
-function renderReports() {
+function renderReports(saveWorkbook: SaveWorkbook = vi.fn().mockResolvedValue(undefined)) {
   const repository = new InMemoryRepository({
     products: [
       product('fosco-lav', 'Recipiente Fosco 200g', 'Lavanda', 6590),
@@ -99,7 +99,7 @@ function renderReports() {
       }),
     ],
   });
-  render(<AppShell repository={repository} />);
+  render(<AppShell repository={repository} saveWorkbook={saveWorkbook} />);
   return repository;
 }
 
@@ -199,5 +199,53 @@ describe('Relatórios', () => {
     expect(await screen.findByText(/Venda · 2× Lavanda/)).toBeInTheDocument();
     expect(screen.queryByText(/Ajuste · −1 Lavanda/)).not.toBeInTheDocument();
     expect((await repository.listProducts()).find((p) => p.id === 'fosco-lav')!.quantity).toBe(6);
+  });
+
+  it('baixa o relatório completo em Excel, com o período no nome do arquivo', async () => {
+    const user = userEvent.setup();
+    const saveWorkbook = vi.fn<SaveWorkbook>().mockResolvedValue(undefined);
+    renderReports(saveWorkbook);
+    await openReports(user);
+
+    await user.click(screen.getByRole('button', { name: /Baixar relatório completo \(Excel\)/ }));
+
+    expect(saveWorkbook).toHaveBeenCalledTimes(1);
+    const model = saveWorkbook.mock.calls[0][0];
+    expect(model.fileName).toMatch(
+      /^laurea-relatorio-completo-\d{4}-\d{2}-01-a-\d{4}-\d{2}-\d{2}\.xlsx$/,
+    );
+    expect(model.sheets.map((s) => s.name)).toContain('Estoque de insumos');
+    expect(model.sheets.find((s) => s.name === 'Vendas')!.rows).toHaveLength(2);
+  });
+
+  it('dentro de um relatório, exporta só as abas dele e respeita o período escolhido', async () => {
+    const user = userEvent.setup();
+    const saveWorkbook = vi.fn<SaveWorkbook>().mockResolvedValue(undefined);
+    renderReports(saveWorkbook);
+    await openReports(user);
+    await user.click(screen.getByRole('button', { name: /^Vendas/ }));
+    await user.click(screen.getByRole('button', { name: 'Mês passado' }));
+
+    await user.click(screen.getByRole('button', { name: /Exportar para Excel/ }));
+
+    const model = saveWorkbook.mock.calls[0][0];
+    expect(model.fileName).toMatch(/^laurea-vendas-\d{4}-\d{2}\.xlsx$/);
+    expect(model.sheets.map((s) => s.name)).toEqual(['Resumo', 'Vendas', 'Por vela']);
+    expect(model.sheets[1].rows).toHaveLength(1); // só a venda do mês passado
+  });
+
+  it('avisa quando não consegue gerar a planilha', async () => {
+    const user = userEvent.setup();
+    renderReports(vi.fn<SaveWorkbook>().mockRejectedValue(new Error('falhou')));
+    await openReports(user);
+
+    await user.click(screen.getByRole('button', { name: /Baixar relatório completo \(Excel\)/ }));
+
+    expect(
+      await screen.findByText('Não foi possível gerar a planilha. Tente de novo.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Baixar relatório completo \(Excel\)/ }),
+    ).toBeEnabled();
   });
 });

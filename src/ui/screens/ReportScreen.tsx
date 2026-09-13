@@ -12,6 +12,11 @@ import {
   type PeriodChoice,
   type Report,
 } from '../../domain/reports';
+import {
+  buildWorkbook,
+  type WorkbookKind,
+  type WorkbookModel,
+} from '../../application/reportWorkbook';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 import { Field, inputClassName } from '../components/Field';
 import {
@@ -31,6 +36,8 @@ import { MOVEMENT_LABELS, describeMovement, matchesQuery, pluralize } from './ca
 type ReportScreenProps = {
   inventory: UseInventoryReturn;
   isOnline: boolean;
+  /** Gera e entrega a planilha. Vem do App, que é quem conhece o adaptador de .xlsx. */
+  onExport: (model: WorkbookModel) => Promise<void>;
   /** Só para testes: fixa a "data de hoje". */
   now?: Date;
 };
@@ -46,12 +53,22 @@ const TITLES: Record<Exclude<View, 'home'>, string> = {
   history: 'Histórico de lançamentos',
 };
 
+/** O que cada tela exporta. A Visão geral exporta o relatório completo. */
+const EXPORT_KIND: Record<Exclude<View, 'home'>, WorkbookKind> = {
+  overview: 'complete',
+  sales: 'sales',
+  production: 'production',
+  exits: 'exits',
+  spending: 'spending',
+  history: 'history',
+};
+
 const shortDate = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short' });
 const when = (movement: Movement) =>
   shortDate.format(new Date(movement.occurredAt)).replace(/\./g, '');
 const units = (n: number) => pluralize(n, 'vela', 'velas');
 
-export function ReportScreen({ inventory, isOnline, now: fixedNow }: ReportScreenProps) {
+export function ReportScreen({ inventory, isOnline, onExport, now: fixedNow }: ReportScreenProps) {
   const { products, supplies, recipes, movements } = inventory;
   const [now] = useState(() => fixedNow ?? new Date());
   const [view, setView] = useState<View>('home');
@@ -65,12 +82,43 @@ export function ReportScreen({ inventory, isOnline, now: fixedNow }: ReportScree
     };
   }, [products, supplies, recipes, movements, choice, now]);
 
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | undefined>();
+
+  async function exportWorkbook(kind: WorkbookKind) {
+    setExporting(true);
+    setExportError(undefined);
+    try {
+      await onExport(buildWorkbook(kind, { products, supplies, recipes, movements }, choice, now));
+    } catch {
+      setExportError('Não foi possível gerar a planilha. Tente de novo.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const picker = (
     <PeriodPicker choice={choice} label={periodLabel(choice, now)} now={now} onChange={setChoice} />
   );
+  const exportNotice = exportError && <Warn>{exportError}</Warn>;
 
   if (view === 'home') {
-    return <ReportsHome report={report} picker={picker} onOpen={setView} />;
+    return (
+      <ReportsHome
+        report={report}
+        picker={picker}
+        onOpen={setView}
+        exportButton={
+          <ExportButton
+            label="Baixar relatório completo (Excel)"
+            busy={exporting}
+            onClick={() => exportWorkbook('complete')}
+            wide
+          />
+        }
+        notice={exportNotice}
+      />
+    );
   }
 
   return (
@@ -82,7 +130,15 @@ export function ReportScreen({ inventory, isOnline, now: fixedNow }: ReportScree
       >
         ‹ Relatórios
       </button>
-      <h1 className="text-2xl font-semibold">{TITLES[view]}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">{TITLES[view]}</h1>
+        <ExportButton
+          label={view === 'overview' ? 'Baixar relatório completo' : 'Exportar para Excel'}
+          busy={exporting}
+          onClick={() => exportWorkbook(EXPORT_KIND[view])}
+        />
+      </div>
+      {exportNotice}
       {picker}
       {view === 'overview' && (
         <Overview report={report} previous={previous} inventory={inventory} />
@@ -100,14 +156,44 @@ export function ReportScreen({ inventory, isOnline, now: fixedNow }: ReportScree
 // Início dos relatórios
 // ---------------------------------------------------------------------------
 
+function ExportButton({
+  label,
+  busy,
+  onClick,
+  wide,
+}: {
+  label: string;
+  busy: boolean;
+  onClick: () => void;
+  wide?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={`flex items-center justify-center gap-2 rounded-lg border border-ok/40 bg-paper px-4 py-2.5 text-sm font-semibold text-ok hover:bg-ok/10 disabled:opacity-60 ${
+        wide ? 'w-full' : ''
+      }`}
+    >
+      <span aria-hidden="true">↓</span>
+      {busy ? 'Gerando planilha…' : label}
+    </button>
+  );
+}
+
 function ReportsHome({
   report,
   picker,
   onOpen,
+  exportButton,
+  notice,
 }: {
   report: Report;
   picker: ReactNode;
   onOpen: (view: View) => void;
+  exportButton: ReactNode;
+  notice: ReactNode;
 }) {
   const revenue = report.sales.revenueCents;
   const spent = report.spending.totalCents;
@@ -164,6 +250,8 @@ function ReportsHome({
           <Figure label="Sobrou" value={formatBRL(revenue - spent)} />
         </span>
       </button>
+      {exportButton}
+      {notice}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {cards.map((card) => (
           <button
