@@ -10,7 +10,7 @@ Celular / navegador
       │  abre o site (HTML, JS, CSS)
       ▼
 ┌──────────────────────┐   API    ┌───────────────────────────┐
-│ Vercel               │  ─────►  │ Supabase                  │
+│ Cloudflare Pages     │  ─────►  │ Supabase                  │
 │ serve a pasta dist/  │          │ Postgres + login + API    │
 │ (gerada pelo build)  │          │ (projeto já existe)       │
 └──────────────────────┘          └───────────────────────────┘
@@ -23,9 +23,13 @@ Celular / navegador
 ```
 
 - **Supabase** é só o back-end: dados, login e API. Ele não hospeda o site.
-- **Vercel** hospeda o site. Qualquer hospedagem de site estático serve
-  (Cloudflare Pages e Netlify funcionam igual); a Vercel foi escolhida por
-  entender projetos Vite sem configuração e publicar a cada push.
+- **Cloudflare Pages** hospeda o site, na mesma conta onde já está a landing
+  page, mas num **projeto separado**. Motivos: o app instala um service
+  worker na raiz do endereço (é o que faz ele funcionar offline e virar app
+  no celular) e, no mesmo endereço da landing, passaria a controlar a landing
+  também; a landing é publicada por upload manual e o app publica sozinho a
+  cada push; e o app é interno, não deve ficar no endereço público da marca.
+  O plano gratuito da Cloudflare permite uso comercial.
 - **GitHub Actions** (`.github/workflows/ci.yml`) roda lint, typecheck,
   testes e build a cada push. Ele não publica nada: só avisa se quebrou.
 
@@ -108,35 +112,61 @@ consegue criar uma conta pelo site e mexer no estoque.
 
 ---
 
-## Parte 2 — Vercel (uma vez)
+## Parte 2 — Cloudflare Pages (uma vez)
 
-- [ ] Crie a conta em [vercel.com](https://vercel.com) entrando com o GitHub
-      (conta `Athosep08`).
-- [ ] **Add New… → Project** e escolha o repositório `laurea-estoque`.
-      Como ele é privado, a Vercel vai pedir permissão para acessá-lo.
-- [ ] Confira o que ela detectar sozinha:
-  - Framework Preset: **Vite**
-  - Build Command: `npm run build`
-  - Output Directory: `dist`
-  - Install Command: `npm ci` (ou o padrão)
-- [ ] Em **Environment Variables**, cadastre as duas da parte 1.5:
-  - `VITE_SUPABASE_URL` = a Project URL
-  - `VITE_SUPABASE_ANON_KEY` = a chave `anon`
+Na mesma conta da Cloudflare onde está a landing, em
+[dash.cloudflare.com](https://dash.cloudflare.com).
+
+- [ ] Menu **Workers & Pages** → **Create**. Escolha a opção **Pages** (a
+      Cloudflare mostra Workers primeiro; o Pages fica numa aba ou num link
+      "Looking to deploy Pages?") → **Import an existing Git repository**
+      (Connect to Git).
+- [ ] Conecte o GitHub (conta `Athosep08`) e dê acesso ao repositório
+      `laurea-estoque`. Ele é privado; a Cloudflare pede permissão só para os
+      repositórios que você escolher.
+- [ ] Configure:
+  - Project name: `laurea-estoque` (vira o endereço `laurea-estoque.pages.dev`)
+  - Production branch: `main`
+  - Framework preset: **React (Vite)** (ou **None**, tanto faz com os campos abaixo)
+  - Build command: `npm run build`
+  - Build output directory: `dist`
+- [ ] Em **Environment variables** (Production), cadastre as três:
+  - `VITE_SUPABASE_URL` = a Project URL (a mesma do `.env.local`)
+  - `VITE_SUPABASE_ANON_KEY` = a chave pública (a mesma do `.env.local`)
+  - `NODE_VERSION` = `20` (a mesma versão que o GitHub Actions usa)
   - **Não** cadastre `VITE_DEMO`: o modo demonstração é só para o localhost.
-- [ ] **Deploy.** Em um ou dois minutos sai um endereço como
-      `laurea-estoque.vercel.app`.
+- [ ] **Save and Deploy.** Em dois ou três minutos o site está em
+      `https://laurea-estoque.pages.dev`.
 
-### 2.1 Avisar o Supabase do endereço novo
+As variáveis entram no app **na hora do build**. Se mudar alguma depois, é
+preciso publicar de novo: **Deployments → ⋯ na última → Retry deployment**.
 
-- [ ] **Authentication → URL Configuration → Site URL**: cole o endereço da
-      Vercel. O login por senha funciona sem isso, mas é o endereço que o
-      Supabase usa em qualquer e-mail que mandar (ex.: recuperar senha).
+### 2.1 Domínio próprio (opcional)
+
+Se a landing usa um domínio próprio que está na Cloudflare (ex.:
+`laureaaromas.com.br`), dá para pôr o app num subdomínio:
+
+- [ ] No projeto `laurea-estoque` → **Custom domains → Set up a custom
+      domain** → `estoque.<seu-domínio>`. A Cloudflare cria o DNS sozinha.
+
+### 2.2 Avisar o Supabase do endereço novo
+
+- [ ] **Authentication → URL Configuration → Site URL**: cole o endereço do
+      app (`https://laurea-estoque.pages.dev`, ou o subdomínio). O login por
+      senha funciona sem isso, mas é o endereço que o Supabase usa em
+      qualquer e-mail que mandar (ex.: recuperar senha).
+
+### Alternativa: Vercel
+
+Funciona igual (importar o repositório, preset Vite, as duas variáveis
+`VITE_*`). Só que o plano gratuito da Vercel (Hobby) é **para uso não
+comercial**; para um app de empresa, seria o plano Pro, pago.
 
 ---
 
 ## Parte 3 — Conferir que está no ar
 
-Abra o endereço da Vercel no celular:
+Abra o endereço do app no celular:
 
 - [ ] A tela de login aparece. Entre com o usuário compartilhado.
 - [ ] O Início mostra os 4 quadrados e **não** mostra a faixa "Modo demonstração".
@@ -157,28 +187,27 @@ Abra o endereço da Vercel no celular:
    SQL Editor **antes** do push. As migrations deste projeto são escritas
    para o app antigo continuar funcionando depois delas; o contrário (app
    novo com banco antigo) quebra.
-2. `git push` na `main`. A Vercel publica sozinha; o GitHub Actions roda os
-   testes em paralelo.
-3. Se algo quebrar no ar: na Vercel, **Deployments → a versão anterior → ⋯ →
-   Promote to Production** volta o site na hora. Migration não volta sozinha:
-   por isso elas são escritas para conviver com o app anterior.
+2. `git push` na `main`. A Cloudflare publica sozinha; o GitHub Actions roda
+   os testes em paralelo. Se o build falhar na Cloudflare, o site continua na
+   versão anterior.
+3. Se algo quebrar no ar: no projeto da Cloudflare, **Deployments → a versão
+   anterior → ⋯ → Rollback to this deployment** volta o site na hora.
+   Migration não volta sozinha: por isso elas são escritas para conviver com o
+   app anterior.
 
-Dica: faça mudanças maiores numa branch. A Vercel gera um endereço de
-pré-visualização para cada branch, bom para mostrar ao stakeholder antes de
-ir para a `main`.
+Dica: faça mudanças maiores numa branch. A Cloudflare gera um endereço de
+pré-visualização para cada branch (`<branch>.laurea-estoque.pages.dev`), bom
+para mostrar ao stakeholder antes de ir para a `main`. Para essas prévias
+funcionarem, cadastre as mesmas variáveis também em **Preview**.
 
 ---
 
 ## Custos
 
-O Supabase cabe no plano gratuito com folga; a hospedagem depende da escolha:
+Tudo cabe nos planos gratuitos para esse volume de uso:
 
-- **Vercel**: o plano gratuito (Hobby) é **só para uso não comercial**. Como
-  o app é de uma empresa, o correto é o plano Pro (pago, por membro) — ou
-  trocar a Vercel pela **Cloudflare Pages**, que é gratuita também para uso
-  comercial e funciona do mesmo jeito (conecta no GitHub, publica a cada
-  push; Build command `npm run build`, pasta `dist`, mesmas duas variáveis, e
-  a variável `NODE_VERSION=20`).
+- **Cloudflare Pages Free**: permite uso comercial; 500 builds por mês (um por
+  push), sobra.
 - **Supabase Free**: 500 MB de banco, sobra para anos de lançamentos. O
-  projeto gratuito **pausa depois de 7 dias sem nenhum acesso**; basta abrir o
-  painel para reativar. Com uso diário, isso não acontece.
+  projeto gratuito **pausa depois de 7 dias sem nenhum acesso** (ver 1.0);
+  com uso diário, isso não acontece.

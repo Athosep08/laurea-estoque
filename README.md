@@ -50,7 +50,7 @@ Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do n
 
 ## Deploy
 
-O passo a passo para colocar no ar (Supabase + Vercel) e para publicar versões novas está em [`docs/deploy.md`](docs/deploy.md).
+O passo a passo para colocar no ar (Supabase + Cloudflare Pages) e para publicar versões novas está em [`docs/deploy.md`](docs/deploy.md).
 
 ## Relatórios
 
