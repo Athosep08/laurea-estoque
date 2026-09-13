@@ -38,6 +38,14 @@ npm run typecheck   # tsc --noEmit
 npm run format      # Prettier (grava)
 ```
 
+### Modo demonstração (sem Supabase)
+
+```bash
+npm run dev:demo
+```
+
+Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do navegador e começam com a mesma carga inicial do seed (receitas, preços, cera e essências reais), completada com estoques de exemplo onde o stakeholder ainda não respondeu. O botão **Recomeçar**, na faixa do topo, volta tudo ao estado inicial. A configuração está em [`.env.demo`](.env.demo); o `npm run dev` normal continua usando o Supabase.
+
 ## Decisões de arquitetura
 
 O projeto segue **arquitetura hexagonal (ports & adapters)**, organizada em quatro camadas com fronteiras estritas:

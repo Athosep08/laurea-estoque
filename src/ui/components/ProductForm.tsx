@@ -28,15 +28,25 @@ type ProductFormProps = {
   product?: Product;
   recipe?: Recipe;
   supplies: Supply[];
+  /** Pré-preenche uma vela nova, ex.: ao criar um aroma dentro de um recipiente. */
+  defaults?: { model: string; priceCents: number };
   onSubmit: (values: ProductFormResult) => void;
   onCancel: () => void;
 };
 
-export function ProductForm({ product, recipe, supplies, onSubmit, onCancel }: ProductFormProps) {
-  const [model, setModel] = useState(product?.model ?? '');
+export function ProductForm({
+  product,
+  recipe,
+  supplies,
+  defaults,
+  onSubmit,
+  onCancel,
+}: ProductFormProps) {
+  const [model, setModel] = useState(product?.model ?? defaults?.model ?? '');
   const [scent, setScent] = useState(product?.scent ?? '');
+  const initialPriceCents = product?.priceCents ?? defaults?.priceCents;
   const [priceReais, setPriceReais] = useState(
-    product ? centsToReais(product.priceCents).toFixed(2) : '',
+    initialPriceCents !== undefined ? centsToReais(initialPriceCents).toFixed(2) : '',
   );
   const [quantity, setQuantity] = useState(product?.quantity ?? 0);
   const [minQuantity, setMinQuantity] = useState(product?.minQuantity ?? 0);

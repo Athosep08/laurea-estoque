@@ -1,8 +1,8 @@
-export type Screen = 'products' | 'supplies' | 'report' | 'backup';
+export type Screen = 'home' | 'stock' | 'report' | 'backup';
 
 const ITEMS: { id: Screen; label: string; icon: string }[] = [
-  { id: 'products', label: 'Velas', icon: '🕯️' },
-  { id: 'supplies', label: 'Insumos', icon: '🧴' },
+  { id: 'home', label: 'Início', icon: '🕯️' },
+  { id: 'stock', label: 'Estoque', icon: '📦' },
   { id: 'report', label: 'Relatório', icon: '📋' },
   { id: 'backup', label: 'Backup', icon: '💾' },
 ];

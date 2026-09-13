@@ -3,133 +3,288 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppShell } from '../../App';
 import { InMemoryRepository } from '../../infra/storage/InMemoryRepository';
+import type { Product, Recipe, Supply } from '../../domain/models';
 
-async function createProduct(options: {
-  model: string;
-  scent: string;
-  price: string;
-  quantity: string;
-  minQuantity: string;
-}) {
-  const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: '+ Nova vela' }));
+const CREATED_AT = '2026-09-11T00:00:00.000Z';
 
-  const dialog = await screen.findByRole('dialog', { name: 'Nova vela' });
-  await user.type(within(dialog).getByLabelText('Modelo'), options.model);
-  await user.type(within(dialog).getByLabelText('Aroma'), options.scent);
-  await user.clear(within(dialog).getByLabelText('Preço (R$)'));
-  await user.type(within(dialog).getByLabelText('Preço (R$)'), options.price);
-  await user.clear(within(dialog).getByLabelText('Quantidade inicial'));
-  await user.type(within(dialog).getByLabelText('Quantidade inicial'), options.quantity);
-  await user.clear(within(dialog).getByLabelText('Estoque mínimo (alerta)'));
-  await user.type(within(dialog).getByLabelText('Estoque mínimo (alerta)'), options.minQuantity);
-  await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+function product(
+  id: string,
+  model: string,
+  scent: string,
+  priceCents: number,
+  quantity: number,
+  extra: Partial<Product> = {},
+): Product {
+  return {
+    id,
+    model,
+    scent,
+    priceCents,
+    quantity,
+    minQuantity: 0,
+    active: true,
+    createdAt: CREATED_AT,
+    ...extra,
+  };
 }
 
-describe('fluxo de venda na tela de Velas', () => {
-  it('cadastra uma vela e registra uma venda, debitando o estoque', async () => {
-    const user = userEvent.setup();
-    render(<AppShell repository={new InMemoryRepository()} onSignOut={() => {}} />);
+function supply(
+  id: string,
+  name: string,
+  unit: Supply['unit'],
+  quantity: number,
+  minQuantity = 0,
+): Supply {
+  return { id, name, unit, quantity, minQuantity, createdAt: CREATED_AT };
+}
 
-    await createProduct({
-      model: 'Clássica Liso 90g',
-      scent: 'Lavanda',
-      price: '35.90',
-      quantity: '5',
-      minQuantity: '2',
-    });
+/** Catálogo pequeno: 2 recipientes, estoques variados, uma ficha técnica com essência faltando. */
+function renderApp() {
+  const recipes: Recipe[] = [
+    {
+      id: 'r-fosco-lavanda',
+      name: 'Fosco Lavanda',
+      items: [
+        { supplyId: 's-cera', quantityPerUnit: 180 },
+        { supplyId: 's-lavanda', quantityPerUnit: 20 },
+      ],
+    },
+  ];
+  const repository = new InMemoryRepository({
+    products: [
+      product('p1', 'Clássica Liso 90g', 'Café', 3590, 5),
+      product('p2', 'Clássica Liso 90g', 'Lavanda', 3590, 1, { minQuantity: 2 }),
+      product('p3', 'Recipiente Fosco 200g', 'Café', 6590, 5),
+      product('p4', 'Recipiente Fosco 200g', 'Flor de Figo', 6590, 5),
+      product('p5', 'Recipiente Fosco 200g', 'Lavanda', 6590, 5, { recipeId: 'r-fosco-lavanda' }),
+      product('p6', 'Recipiente Fosco 200g', 'Santal', 6590, 0),
+    ],
+    supplies: [
+      supply('s-cera', 'Cera de coco', 'g', 1000),
+      supply('s-lavanda', 'Essência Lavanda', 'g', 15, 30),
+      supply('s-frasco', 'Frasco 200g fosco', 'un', 10),
+    ],
+    recipes,
+  });
+  render(<AppShell repository={repository} />);
+}
 
-    const card = (await screen.findByText('Lavanda')).closest('article')!;
-    expect(within(card).getByText('5')).toBeInTheDocument();
+async function sellFoscoLavanda(user: ReturnType<typeof userEvent.setup>, quantity: string) {
+  await user.click(await screen.findByRole('button', { name: /Vender/ }));
+  await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+  await user.click(screen.getByRole('button', { name: /Lavanda/ }));
+  await user.clear(screen.getByLabelText('Quantidade vendida'));
+  await user.type(screen.getByLabelText('Quantidade vendida'), quantity);
+  await user.click(screen.getByRole('button', { name: 'Registrar venda' }));
+}
 
-    await user.click(within(card).getByRole('button', { name: 'Vender' }));
-    const sellDialog = await screen.findByRole('dialog', { name: 'Registrar venda' });
-    await user.clear(within(sellDialog).getByLabelText('Quantidade vendida'));
-    await user.type(within(sellDialog).getByLabelText('Quantidade vendida'), '2');
-    await user.click(within(sellDialog).getByRole('button', { name: 'Registrar venda' }));
+describe('Início: lançamentos', () => {
+  it('pergunta o que vai ser lançado, com as quatro ações', async () => {
+    renderApp();
 
-    const updatedCard = (await screen.findByText('Lavanda')).closest('article')!;
-    expect(within(updatedCard).getByText('3')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'O que você vai lançar?' }),
+    ).toBeInTheDocument();
+    for (const action of ['Vender', 'Produzir', 'Entrada de insumo', 'Ajustar']) {
+      expect(screen.getByRole('button', { name: new RegExp(action) })).toBeInTheDocument();
+    }
   });
 
-  it('mostra o alerta de estoque baixo quando a quantidade atinge o mínimo', async () => {
-    render(<AppShell repository={new InMemoryRepository()} onSignOut={() => {}} />);
+  it('vende escolhendo recipiente e aroma, e confirma com o estoque novo', async () => {
+    const user = userEvent.setup();
+    renderApp();
 
-    await createProduct({
-      model: 'Recipiente Fosco 200g',
-      scent: 'Café',
-      price: '65.90',
-      quantity: '1',
-      minQuantity: '3',
-    });
+    await sellFoscoLavanda(user, '2');
 
-    const card = (await screen.findByText('Café')).closest('article')!;
-    expect(within(card).getByText('Estoque baixo')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Venda registrada' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/2× Lavanda · Recipiente Fosco 200g · R\$\s131,80/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Agora tem 3 un. dessa vela.')).toBeInTheDocument();
+  });
+
+  it('"Registrar outra venda" volta para os aromas do mesmo recipiente', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await sellFoscoLavanda(user, '1');
+    await user.click(await screen.findByRole('button', { name: 'Registrar outra venda' }));
+
+    expect(screen.getByText('Qual aroma?')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recipiente Fosco 200g' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Lavanda.*4 un\./ })).toBeInTheDocument();
+  });
+
+  it('desfaz o lançamento na confirmação e devolve o estoque', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await sellFoscoLavanda(user, '2');
+    await user.click(await screen.findByRole('button', { name: 'Desfazer este lançamento' }));
+
+    expect(await screen.findByRole('heading', { name: 'Venda desfeita' })).toBeInTheDocument();
+    expect(screen.getByText('Agora tem 5 un. dessa vela.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Desfazer este lançamento' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('em Vender, vela sem estoque aparece mas não pode ser escolhida', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Vender/ }));
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+
+    expect(screen.getByRole('button', { name: /Santal/ })).toBeDisabled();
+    expect(screen.getByText('Sem estoque para vender')).toBeInTheDocument();
+  });
+
+  it('a busca pula a escolha do recipiente', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Vender/ }));
+    await user.type(screen.getByLabelText('Buscar vela'), 'fosco cafe');
+
+    const rows = screen.getAllByRole('button', { name: /Café/ });
+    expect(rows).toHaveLength(1);
+    await user.click(rows[0]);
+    expect(screen.getByLabelText('Quantidade vendida')).toBeInTheDocument();
+  });
+
+  it('em Produzir, avisa na lista e no formulário quando falta insumo', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Produzir/ }));
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+    expect(screen.getByText('Falta essência lavanda')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Lavanda/ }));
+    await user.click(screen.getByRole('button', { name: 'Registrar produção' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Essência Lavanda: faltam 5 g');
+  });
+
+  it('registra entrada de insumo', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Entrada de insumo/ }));
+    await user.click(screen.getByRole('button', { name: /Cera de coco/ }));
+    await user.clear(screen.getByLabelText('Quantidade comprada (g)'));
+    await user.type(screen.getByLabelText('Quantidade comprada (g)'), '500');
+    await user.click(screen.getByRole('button', { name: 'Registrar compra' }));
+
+    expect(await screen.findByRole('heading', { name: 'Entrada registrada' })).toBeInTheDocument();
+    expect(screen.getByText('Agora tem 1.500 g de cera de coco.')).toBeInTheDocument();
+  });
+
+  it('o aviso de estoque baixo leva para o Estoque', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /com estoque baixo/ }));
+
+    expect(screen.getByRole('heading', { name: 'Estoque' })).toBeInTheDocument();
   });
 });
 
-describe('busca na tela de Velas', () => {
-  function renderWithCatalog() {
-    const product = (id: string, model: string, scent: string) => ({
-      id,
-      model,
-      scent,
-      priceCents: 3590,
-      quantity: 5,
-      minQuantity: 0,
-      active: true,
-      createdAt: '2026-09-11T00:00:00.000Z',
-    });
-    const repository = new InMemoryRepository({
-      products: [
-        product('p1', 'Clássica Liso 90g', 'Café'),
-        product('p2', 'Clássica Liso 90g', 'Lavanda'),
-        product('p3', 'Recipiente Fosco 200g', 'Café'),
-        product('p4', 'Recipiente Fosco 200g', 'Flor de Figo'),
-      ],
-    });
-    render(<AppShell repository={repository} onSignOut={() => {}} />);
+describe('Estoque: consulta e cadastro', () => {
+  async function openStock(user: ReturnType<typeof userEvent.setup>) {
+    const nav = screen.getAllByRole('button', { name: /Estoque/ })[0];
+    await user.click(nav);
   }
 
-  it('filtra por aroma ignorando acento e maiúsculas', async () => {
+  it('mostra os recipientes com resumo, e entra para ver os aromas sem botões de ação', async () => {
     const user = userEvent.setup();
-    renderWithCatalog();
+    renderApp();
+    await screen.findByRole('heading', { name: 'O que você vai lançar?' });
+    await openStock(user);
 
-    await user.type(await screen.findByLabelText('Buscar vela'), 'CAFE');
+    const liso = screen.getByRole('button', { name: /Clássica Liso 90g/ });
+    expect(liso).toHaveTextContent('R$ 35,90 · 2 aromas');
+    expect(liso).toHaveTextContent('1 com estoque baixo');
 
-    expect(screen.getAllByText('Café')).toHaveLength(2);
-    expect(screen.queryByText('Lavanda')).not.toBeInTheDocument();
-    expect(screen.queryByText('Flor de Figo')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Recipiente Fosco 200g' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Vender' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '‹ Recipientes' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Estoque' })).toBeInTheDocument();
   });
 
-  it('filtra por modelo e esconde os grupos sem resultado', async () => {
+  it('tocar num aroma abre os detalhes com a ficha técnica e o Editar', async () => {
     const user = userEvent.setup();
-    renderWithCatalog();
+    renderApp();
+    await screen.findByRole('heading', { name: 'O que você vai lançar?' });
+    await openStock(user);
 
-    await user.type(await screen.findByLabelText('Buscar vela'), 'fosco');
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+    await user.click(screen.getByRole('button', { name: /Lavanda/ }));
 
-    expect(screen.getByRole('heading', { name: 'Recipiente Fosco 200g' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Clássica Liso 90g' })).not.toBeInTheDocument();
-    expect(screen.getByText('Flor de Figo')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Lavanda' });
+    expect(within(dialog).getByText('180 g Cera de coco')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Editar vela' }));
+    expect(await screen.findByRole('dialog', { name: 'Editar vela' })).toBeInTheDocument();
   });
 
-  it('combina aroma e modelo em qualquer ordem', async () => {
+  it('"+ Novo aroma" já vem com o recipiente e o preço dele', async () => {
     const user = userEvent.setup();
-    renderWithCatalog();
+    renderApp();
+    await screen.findByRole('heading', { name: 'O que você vai lançar?' });
+    await openStock(user);
 
-    await user.type(await screen.findByLabelText('Buscar vela'), 'fosco cafe');
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+    await user.click(screen.getByRole('button', { name: '+ Novo aroma' }));
 
-    expect(screen.getAllByText('Café')).toHaveLength(1);
-    expect(screen.getByRole('heading', { name: 'Recipiente Fosco 200g' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Clássica Liso 90g' })).not.toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Nova vela' });
+    expect(within(dialog).getByLabelText('Modelo')).toHaveValue('Recipiente Fosco 200g');
+    expect(within(dialog).getByLabelText('Preço (R$)')).toHaveValue(65.9);
   });
 
-  it('avisa quando nenhuma vela corresponde à busca', async () => {
+  it('cadastra uma vela nova e abre o recipiente dela', async () => {
     const user = userEvent.setup();
-    renderWithCatalog();
+    renderApp();
+    await screen.findByRole('heading', { name: 'O que você vai lançar?' });
+    await openStock(user);
 
-    await user.type(await screen.findByLabelText('Buscar vela'), 'santal');
+    await user.click(screen.getByRole('button', { name: '+ Nova vela' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Nova vela' });
+    await user.type(within(dialog).getByLabelText('Modelo'), 'Recipiente Refinado 200g');
+    await user.type(within(dialog).getByLabelText('Aroma'), 'Canela');
+    await user.clear(within(dialog).getByLabelText('Preço (R$)'));
+    await user.type(within(dialog).getByLabelText('Preço (R$)'), '75.90');
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
-    expect(screen.getByText('Nenhuma vela encontrada para “santal”.')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Recipiente Refinado 200g' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Canela/ })).toBeInTheDocument();
+  });
+
+  it('lista insumos com o que está abaixo do mínimo primeiro, e busca', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole('heading', { name: 'O que você vai lançar?' });
+    await openStock(user);
+
+    await user.click(screen.getByRole('tab', { name: 'Insumos' }));
+    const rows = screen.getAllByRole('button', {
+      name: /Cera de coco|Essência Lavanda|Frasco 200g fosco/,
+    });
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Essência Lavanda'),
+      expect.stringContaining('Cera de coco'),
+      expect.stringContaining('Frasco 200g fosco'),
+    ]);
+    expect(rows[0]).toHaveTextContent('Abaixo do mínimo (30 g)');
+
+    await user.type(screen.getByLabelText('Buscar insumo'), 'frasco');
+    expect(screen.getByRole('button', { name: /Frasco 200g fosco/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Cera de coco/ })).not.toBeInTheDocument();
   });
 });
