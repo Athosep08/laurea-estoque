@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Supply } from '../../domain/models';
-import { formatBRL, parseReaisInput } from '../../domain/money';
+import { formatUnitCost, parseReaisInput } from '../../domain/money';
 import { formatQuantity } from '../../domain/quantity';
 import { Field, inputClassName } from './Field';
 
@@ -10,13 +10,6 @@ type PurchaseFormProps = {
   onSubmit: (values: { quantity: number; totalCents?: number; note?: string }) => void;
   onCancel: () => void;
 };
-
-/** Grama e mililitro dão custos minúsculos (R$ 0,18 por g); por kg e por L se lê melhor. */
-function unitCostLabel(totalCents: number, quantity: number, unit: Supply['unit']): string {
-  if (unit === 'g') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por kg`;
-  if (unit === 'ml') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por L`;
-  return `${formatBRL(Math.round(totalCents / quantity))} por ${unit}`;
-}
 
 export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) {
   const [quantity, setQuantity] = useState(0);
@@ -27,7 +20,7 @@ export function PurchaseForm({ supply, onSubmit, onCancel }: PurchaseFormProps) 
   const paidCents = parseReaisInput(paid);
   const unitCost =
     paidCents !== undefined && paidCents > 0 && quantity > 0
-      ? unitCostLabel(paidCents, quantity, supply.unit)
+      ? formatUnitCost(paidCents, quantity, supply.unit)
       : undefined;
 
   function handleSubmit(event: FormEvent) {

@@ -12,7 +12,6 @@ import {
 } from '../../application/registerSupplyPurchase';
 import { adjustStock, type AdjustStockInput } from '../../application/adjustStock';
 import { undoMovement } from '../../application/undoMovement';
-import { getMonthlyReport } from '../../application/getMonthlyReport';
 
 type InventoryData = {
   products: Product[];
@@ -146,11 +145,6 @@ export function useInventory(repository: EstoqueRepository) {
     [repository, reload],
   );
 
-  const report = useCallback(
-    (year: number, month: number) => getMonthlyReport(repository, year, month),
-    [repository],
-  );
-
   return useMemo(
     () => ({
       ...data,
@@ -165,7 +159,6 @@ export function useInventory(repository: EstoqueRepository) {
       saveProduct,
       saveSupply,
       saveRecipe,
-      report,
     }),
     [
       data,
@@ -180,7 +173,6 @@ export function useInventory(repository: EstoqueRepository) {
       saveProduct,
       saveSupply,
       saveRecipe,
-      report,
     ],
   );
 }

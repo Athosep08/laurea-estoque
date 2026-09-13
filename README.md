@@ -1,6 +1,6 @@
 # L'AUREA Estoque
 
-PWA de controle de estoque para a L'AUREA Aromas (velas artesanais, Chapecó/SC). Cadastro de velas e insumos, produção com baixa automática de receita, registro de vendas, ajustes de estoque com justificativa, relatório mensal e backup/restauração — com um backend real (Supabase/Postgres) para uso simultâneo em N dispositivos, login compartilhado e modo offline somente leitura.
+PWA de controle de estoque para a L'AUREA Aromas (velas artesanais, Chapecó/SC). Cadastro de velas e insumos, produção com baixa automática de receita, registro de vendas, ajustes de estoque com justificativa, relatórios por período (visão geral, vendas, produção, saídas de estoque e gastos) e backup/restauração — com um backend real (Supabase/Postgres) para uso simultâneo em N dispositivos, login compartilhado e modo offline somente leitura.
 
 ## Stack
 
@@ -47,6 +47,19 @@ npm run dev:demo
 
 Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do navegador e começam com a mesma carga inicial do seed (receitas, preços, cera e essências reais), completada com estoques de exemplo onde o stakeholder ainda não respondeu. O botão **Recomeçar**, na faixa do topo, volta tudo ao estado inicial. A configuração está em [`.env.demo`](.env.demo); o `npm run dev` normal continua usando o Supabase.
 
+## Relatórios
+
+A aba **Relatório** tem cinco relatórios com o mesmo seletor de período (este mês, mês passado, 7 dias, 30 dias ou qualquer mês), e todos comparam com o período anterior do mesmo tamanho:
+
+- **Visão geral** — quanto entrou, saiu e sobrou; faturamento por dia; aromas que mais venderam; quanto sobra em cada vela; o que está acabando.
+- **Vendas**, **Produção**, **Saídas de estoque** (vendidas, brindes, quebras, perdas) e **Gastos** (por categoria e por insumo, com busca "quanto gastei com…").
+- **Histórico** — todos os lançamentos do período, com Desfazer.
+
+O cálculo fica em [`src/domain/reports.ts`](src/domain/reports.ts), em funções puras. Duas regras que valem saber:
+
+- **Custo de insumo** é a média ponderada do que foi pago nas entradas com valor, de todo o histórico. Insumo sem nenhuma entrada com valor aparece como "sem custo" — o relatório não inventa número.
+- **Categoria de insumo** (Cera, Essências, Frascos, Montagem, Embalagem) é deduzida do nome, porque o cadastro não tem esse campo.
+
 ## Decisões de arquitetura
 
 O projeto segue **arquitetura hexagonal (ports & adapters)**, organizada em quatro camadas com fronteiras estritas:
@@ -61,7 +74,7 @@ supabase/
   migrations/    schema SQL, RLS e funções RPC — fonte da verdade do backend
 ```
 
-**Por que essa separação.** O domínio (`domain/`) contém funções puras (`sell`, `produce`, `adjustProductQuantity`, `getMonthlyReport`, etc.) que recebem estado e devolvem um novo estado, sem efeitos colaterais. Isso torna as regras de negócio (baixa de receita na produção, impedir estoque negativo na venda, exigir justificativa em ajuste, undo exato de movimentações) testáveis sem mocks, sem DOM e sem rede — e são a mesma lógica usada pelo `LocalStorageRepository`/`InMemoryRepository`.
+**Por que essa separação.** O domínio (`domain/`) contém funções puras (`sell`, `produce`, `adjustProductQuantity`, `buildReport`, etc.) que recebem estado e devolvem um novo estado, sem efeitos colaterais. Isso torna as regras de negócio (baixa de receita na produção, impedir estoque negativo na venda, exigir justificativa em ajuste, undo exato de movimentações) testáveis sem mocks, sem DOM e sem rede — e são a mesma lógica usada pelo `LocalStorageRepository`/`InMemoryRepository`.
 
 A UI (`ui/`) nunca importa `infra/` nem chama o repositório diretamente — todo acesso passa pelo hook `useInventory`, que também centraliza o padrão "executa ação → recarrega estado" (agora assíncrono, com `loading`/`error`).
 
@@ -95,7 +108,7 @@ No adapter do Supabase, cada um desses métodos chama uma função `plpgsql` (`s
 
 Estratégia de cobertura, conforme a filosofia de teste do projeto:
 
-- **`domain/`**: cobertura profunda de todas as regras de negócio (venda, produção, ajustes, relatório, dinheiro) — a maior parte dos testes vive aqui, sem mocks.
+- **`domain/`**: cobertura profunda de todas as regras de negócio (venda, produção, ajustes, relatórios, dinheiro) — a maior parte dos testes vive aqui, sem mocks.
 - **`application/`**: um teste por caso de uso, usando `InMemoryRepository` como fake — inclui o caso de undo com receita alterada posteriormente. `SupabaseEstoqueRepository` (as chamadas RPC/REST reais) não tem teste automatizado — validado manualmente contra o projeto Supabase.
 - **`infra/`**: testes do adaptador de `localStorage` e das funções de backup/restauração.
 - **`ui/`**: um a dois fluxos completos com Testing Library, renderizando `AppShell` (o miolo da tela, sem login/rede) com `InMemoryRepository` injetado — mantém a UI testável contra a porta `EstoqueRepository`, não contra o adapter concreto. Não há testes de breakpoint/responsividade.

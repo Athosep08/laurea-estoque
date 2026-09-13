@@ -1,4 +1,4 @@
-import type { Product, Recipe, Supply } from '../../domain/models';
+import type { Movement, Product, Recipe, Supply } from '../../domain/models';
 import type { EstoqueState } from './EstoqueRepository';
 
 /**
@@ -7,6 +7,11 @@ import type { EstoqueState } from './EstoqueRepository';
  * cera e as 9 essências que o stakeholder informou. Onde ele ainda não
  * respondeu (pavio, frascos, adesivos, velas prontas, as outras 5 essências e
  * os mínimos de alerta) os valores são EXEMPLO, só para dar para testar.
+ *
+ * Também traz 75 dias de histórico de EXEMPLO (vendas, produções, compras com
+ * valor pago e ajustes com motivo), para os relatórios terem o que mostrar.
+ * O histórico não recalcula o estoque: o estoque de hoje é o de cima, e os
+ * lançamentos antigos são tratados como já refletidos nele.
  */
 
 const CREATED_AT = '2026-09-11T00:00:00.000Z';
@@ -68,7 +73,7 @@ const slug = (text: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
-export function createDemoState(): EstoqueState {
+export function createDemoState(now: Date = new Date()): EstoqueState {
   const supplies: Supply[] = [];
   const addSupply = (name: string, unit: Supply['unit'], quantity: number, minQuantity: number) => {
     const supply: Supply = {
@@ -130,5 +135,198 @@ export function createDemoState(): EstoqueState {
     });
   }
 
-  return { products, supplies, recipes, movements: [] };
+  const movements = createDemoHistory(now, products, recipes, supplies);
+  return { products, supplies, recipes, movements };
+}
+
+/** Compra padrão de cada insumo, com o valor pago (EXEMPLO). */
+const STANDARD_PURCHASE: Record<string, { quantity: number; totalCents: number }> = {
+  'Cera de coco': { quantity: 5000, totalCents: 30000 },
+  'Frasco 90g liso (com tampa)': { quantity: 12, totalCents: 5400 },
+  'Frasco 200g fosco': { quantity: 12, totalCents: 8160 },
+  'Frasco 200g canelado': { quantity: 12, totalCents: 10680 },
+  Pavio: { quantity: 30, totalCents: 1800 },
+  'Ilhós médio': { quantity: 50, totalCents: 750 },
+  'Adesivo da vela': { quantity: 100, totalCents: 3500 },
+  'Adesivo da sacola': { quantity: 100, totalCents: 2500 },
+  Sacola: { quantity: 50, totalCents: 6000 },
+  Caixa: { quantity: 10, totalCents: 3500 },
+};
+
+/** Essências sem nenhuma compra com valor: mostram como o relatório avisa custo faltando. */
+const ESSENCES_WITHOUT_COST = new Set(['Santal', 'Canela']);
+
+/** Gerador pseudoaleatório com semente fixa: o histórico é sempre o mesmo. */
+function seededRandom(seed: number) {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function createDemoHistory(
+  now: Date,
+  products: Product[],
+  recipes: Recipe[],
+  supplies: Supply[],
+): Movement[] {
+  const random = seededRandom(20260913);
+  function pick<T>(items: T[], weights: number[]): T {
+    let roll = random() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < items.length; i++) {
+      roll -= weights[i];
+      if (roll <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+  const supplyByName = new Map(supplies.map((s) => [s.name, s]));
+  const recipeById = new Map(recipes.map((r) => [r.id, r]));
+  const popularity: Record<string, number> = {
+    Lavanda: 6,
+    Café: 5,
+    'Flor de Figo': 3,
+    Bamboo: 3,
+    'Cereja e Avelã': 3,
+    'Apple Cake': 2,
+    Coco: 2,
+  };
+  const modelNames = MODELS.map((m) => m.name);
+  const aromaNames = AROMAS.map(([aroma]) => aroma);
+  const aromasWithCost = aromaNames.filter((a) => !ESSENCES_WITHOUT_COST.has(a));
+  const productFor = (model: string, aroma: string) =>
+    products.find((p) => p.model === model && p.scent === aroma)!;
+  const randomProduct = () =>
+    productFor(
+      pick(modelNames, [5, 3, 2]),
+      pick(
+        aromaNames,
+        aromaNames.map((a) => popularity[a] ?? 1),
+      ),
+    );
+
+  const movements: Movement[] = [];
+  const at = (daysAgo: number, hour: number) =>
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - daysAgo,
+      hour,
+      Math.floor(random() * 50),
+    ).toISOString();
+  const push = (movement: Omit<Movement, 'id' | 'undone'>) =>
+    movements.push({ ...movement, id: `demo-historico-${movements.length + 1}`, undone: false });
+  const purchase = (
+    daysAgo: number,
+    name: string,
+    custom?: { quantity: number; totalCents?: number },
+  ) => {
+    const { quantity, totalCents } = custom ?? STANDARD_PURCHASE[name];
+    push({
+      type: 'supply_purchase',
+      occurredAt: at(daysAgo, 9),
+      supplyId: supplyByName.get(name)!.id,
+      quantity,
+      totalCents,
+    });
+  };
+  const essence = (daysAgo: number, aroma: string) =>
+    purchase(daysAgo, `Essência ${aroma}`, { quantity: 100, totalCents: 4000 });
+
+  // Compras iniciais: dão custo a quase todos os insumos.
+  for (const name of Object.keys(STANDARD_PURCHASE)) purchase(74, name);
+  for (const aroma of aromasWithCost) essence(74, aroma);
+
+  for (let daysAgo = 73; daysAgo >= 1; daysAgo--) {
+    const salesToday = random() < 0.3 ? 0 : 1 + Math.floor(random() * 3);
+    for (let i = 0; i < salesToday; i++) {
+      const product = randomProduct();
+      const quantity = random() < 0.8 ? 1 : 2;
+      const full = product.priceCents * quantity;
+      push({
+        type: 'sale',
+        occurredAt: at(daysAgo, 10 + i * 3),
+        productId: product.id,
+        quantity,
+        totalCents: random() < 0.12 ? Math.round(full * 0.9) : full,
+      });
+    }
+
+    if (daysAgo % 3 === 0) {
+      const product = randomProduct();
+      const quantity = 2 + Math.floor(random() * 5);
+      const recipe = recipeById.get(product.recipeId!)!;
+      push({
+        type: 'production',
+        occurredAt: at(daysAgo, 15),
+        productId: product.id,
+        quantity,
+        consumed: recipe.items.map((item) => ({
+          supplyId: item.supplyId,
+          quantity: item.quantityPerUnit * quantity,
+        })),
+      });
+    }
+
+    if (daysAgo % 20 === 7) purchase(daysAgo, 'Cera de coco');
+    if (daysAgo % 9 === 4) {
+      essence(
+        daysAgo,
+        pick(
+          aromasWithCost,
+          aromasWithCost.map((a) => popularity[a] ?? 1),
+        ),
+      );
+    }
+    if (daysAgo % 15 === 2) {
+      purchase(
+        daysAgo,
+        pick(
+          ['Frasco 90g liso (com tampa)', 'Frasco 200g fosco', 'Frasco 200g canelado'],
+          [5, 3, 2],
+        ),
+      );
+    }
+    if (daysAgo % 30 === 10) {
+      for (const name of ['Sacola', 'Adesivo da sacola', 'Adesivo da vela'])
+        purchase(daysAgo, name);
+    }
+    if (daysAgo % 30 === 25) {
+      for (const name of ['Pavio', 'Ilhós médio', 'Caixa']) purchase(daysAgo, name);
+    }
+    // Uma compra sem valor pago: aparece no aviso do relatório de Gastos.
+    if (daysAgo === 5) purchase(daysAgo, 'Sacola', { quantity: 20 });
+  }
+
+  const adjustProduct = (daysAgo: number, model: string, aroma: string, note: string) =>
+    push({
+      type: 'adjustment',
+      occurredAt: at(daysAgo, 14),
+      productId: productFor(model, aroma).id,
+      quantity: -1,
+      note,
+    });
+  adjustProduct(40, 'Recipiente Fosco 200g', 'Lavanda', 'Brinde');
+  adjustProduct(33, 'Clássica Liso 90g', 'Café', 'Quebrou');
+  adjustProduct(18, 'Recipiente Refinado 200g', 'Coco', 'Brinde');
+  adjustProduct(9, 'Clássica Liso 90g', 'Bamboo', 'Sumiu');
+  adjustProduct(4, 'Recipiente Fosco 200g', 'Café', 'Quebrou');
+  push({
+    type: 'adjustment',
+    occurredAt: at(27, 16),
+    supplyId: supplyByName.get('Essência Lavanda')!.id,
+    quantity: -15,
+    note: 'Derramou',
+  });
+  push({
+    type: 'adjustment',
+    occurredAt: at(12, 16),
+    supplyId: supplyByName.get('Frasco 200g fosco')!.id,
+    quantity: -1,
+    note: 'Quebrou',
+  });
+
+  return movements.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 }

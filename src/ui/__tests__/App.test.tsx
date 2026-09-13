@@ -214,6 +214,25 @@ describe('Início: lançamentos', () => {
     expect(screen.queryByRole('heading', { name: 'Entrada registrada' })).not.toBeInTheDocument();
   });
 
+  it('no ajuste, os motivos prontos preenchem o campo e o texto livre continua valendo', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: /Ajustar/ }));
+    await user.click(screen.getByRole('button', { name: /Uma vela/ }));
+    await user.click(screen.getByRole('button', { name: /Recipiente Fosco 200g/ }));
+    await user.click(screen.getByRole('button', { name: /Lavanda/ }));
+
+    const motivo = screen.getByLabelText('Motivo');
+    await user.click(screen.getByRole('button', { name: 'Brinde' }));
+    expect(motivo).toHaveValue('Brinde');
+    expect(screen.getByRole('button', { name: 'Brinde' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.clear(motivo);
+    await user.type(motivo, 'Amostra para loja');
+    expect(screen.getByRole('button', { name: 'Brinde' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('o aviso de estoque baixo leva para o Estoque', async () => {
     const user = userEvent.setup();
     renderApp();

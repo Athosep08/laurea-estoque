@@ -37,3 +37,13 @@ export function parseReaisInput(text: string): Cents | undefined {
   if (!/^\d+(\.\d+)?$/.test(normalized)) return Number.NaN;
   return reaisToCents(Number(normalized));
 }
+
+/**
+ * Custo por unidade de um insumo: "R$ 180,00 por kg". Grama e mililitro dão
+ * valores minúsculos (R$ 0,18 por g), então viram por kg e por L.
+ */
+export function formatUnitCost(totalCents: Cents, quantity: number, unit: string): string {
+  if (unit === 'g') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por kg`;
+  if (unit === 'ml') return `${formatBRL(Math.round((totalCents / quantity) * 1000))} por L`;
+  return `${formatBRL(Math.round(totalCents / quantity))} por ${unit}`;
+}

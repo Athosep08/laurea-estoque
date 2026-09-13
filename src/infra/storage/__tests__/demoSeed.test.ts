@@ -46,3 +46,54 @@ describe('createDemoState', () => {
     expect(qty(recipeOf('Recipiente Refinado 200g', 'Lavanda'), lavanda)).toBe(20);
   });
 });
+
+describe('histórico de exemplo da demonstração', () => {
+  const now = new Date(2026, 8, 13, 15);
+  const state = createDemoState(now);
+  const productIds = new Set(state.products.map((p) => p.id));
+  const supplyIds = new Set(state.supplies.map((s) => s.id));
+
+  it('traz os quatro tipos de lançamento, só no passado e dentro de 75 dias', () => {
+    const types = new Set(state.movements.map((m) => m.type));
+    expect(types).toEqual(new Set(['sale', 'production', 'supply_purchase', 'adjustment']));
+    const oldest = new Date(2026, 8, 13 - 75);
+    for (const movement of state.movements) {
+      const at = new Date(movement.occurredAt);
+      expect(at < now).toBe(true);
+      expect(at > oldest).toBe(true);
+    }
+  });
+
+  it('todo lançamento aponta para uma vela ou um insumo que existe', () => {
+    for (const movement of state.movements) {
+      if (movement.productId) expect(productIds.has(movement.productId)).toBe(true);
+      else expect(supplyIds.has(movement.supplyId!)).toBe(true);
+    }
+  });
+
+  it('produção consome exatamente a ficha técnica da vela', () => {
+    const production = state.movements.find((m) => m.type === 'production')!;
+    const product = state.products.find((p) => p.id === production.productId)!;
+    const recipe = state.recipes.find((r) => r.id === product.recipeId)!;
+    expect(production.consumed).toEqual(
+      recipe.items.map((i) => ({
+        supplyId: i.supplyId,
+        quantity: i.quantityPerUnit * production.quantity,
+      })),
+    );
+  });
+
+  it('é sempre o mesmo para a mesma data', () => {
+    expect(createDemoState(now).movements).toEqual(state.movements);
+  });
+
+  it('deixa duas essências sem compra com valor, para mostrar o aviso de custo faltando', () => {
+    const pricedSupplies = new Set(
+      state.movements
+        .filter((m) => m.type === 'supply_purchase' && m.totalCents !== undefined)
+        .map((m) => m.supplyId),
+    );
+    const withoutCost = state.supplies.filter((s) => !pricedSupplies.has(s.id)).map((s) => s.name);
+    expect(withoutCost.sort()).toEqual(['Essência Canela', 'Essência Santal']);
+  });
+});

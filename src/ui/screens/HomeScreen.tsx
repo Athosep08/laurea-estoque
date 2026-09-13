@@ -25,6 +25,10 @@ import {
 
 type Action = 'sell' | 'produce' | 'purchase' | 'adjust';
 
+/** Motivos em botão no ajuste. O relatório de Saídas soma por eles. */
+const PRODUCT_ADJUST_REASONS = ['Brinde', 'Quebrou', 'Sumiu', 'Recontagem'];
+const SUPPLY_ADJUST_REASONS = ['Derramou', 'Quebrou', 'Venceu', 'Recontagem'];
+
 type Step =
   | { kind: 'menu' }
   | { kind: 'adjustTarget' }
@@ -468,6 +472,7 @@ export function HomeScreen({ inventory, isOnline, onOpenStock }: HomeScreenProps
           )}
           {step.action === 'adjust' && (product || supply) && (
             <AdjustForm
+              reasons={product ? PRODUCT_ADJUST_REASONS : SUPPLY_ADJUST_REASONS}
               currentLabel={
                 product
                   ? `Em estoque: ${product.quantity} un.`
