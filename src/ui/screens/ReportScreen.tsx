@@ -22,7 +22,7 @@ import { Field, inputClassName } from '../components/Field';
 import {
   Bars,
   Block,
-  DailyRevenueChart,
+  RevenueBlock,
   Delta,
   Kpi,
   KpiGrid,
@@ -347,9 +347,7 @@ function Overview({
         <Kpi label="Descontos dados" value={formatBRL(sales.discountCents)} />
       </KpiGrid>
       <Grid>
-        <Block title="Faturamento por dia" hint="maior dia em destaque" wide>
-          <DailyRevenueChart days={sales.daily} />
-        </Block>
+        <RevenueBlock days={sales.daily} />
         <Block title="Aromas que mais venderam" hint="velas">
           <Bars
             items={sales.byScent.slice(0, 5)}
@@ -449,9 +447,7 @@ function Sales({
         <Kpi label="Ticket médio" value={formatBRL(sales.ticketCents)} />
       </KpiGrid>
       <Grid>
-        <Block title="Faturamento por dia" hint="maior dia em destaque" wide>
-          <DailyRevenueChart days={sales.daily} />
-        </Block>
+        <RevenueBlock days={sales.daily} />
         <Block title="Por recipiente" hint="faturamento">
           <Bars items={sales.byModel} format={formatBRL} empty="Nenhuma venda no período." />
         </Block>

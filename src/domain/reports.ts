@@ -21,8 +21,8 @@ export type PeriodChoice =
   | { kind: 'last-month' }
   | { kind: 'last-7' }
   | { kind: 'last-30' }
-  /** `month` é 1-12. */
-  | { kind: 'month'; year: number; month: number };
+  /** De `from` até `to`, as duas datas inclusas, no formato `AAAA-MM-DD`. */
+  | { kind: 'range'; from: string; to: string };
 
 /** Intervalo [start, end): inclui `start`, exclui `end`. */
 export type Period = { start: Date; end: Date };
@@ -33,6 +33,19 @@ const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(),
 const addDays = (date: Date, days: number) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const firstOfMonth = (year: number, monthIndex: number) => new Date(year, monthIndex, 1);
+const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / DAY_MS);
+
+/** "2026-09-05" → 5/9/2026 à meia-noite, no fuso local (e não em UTC, como `new Date('2026-09-05')`). */
+export function parseDay(text: string): Date {
+  const [year, month, day] = text.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** 5/9/2026 → "2026-09-05". */
+export function formatDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
 
 export function periodRange(choice: PeriodChoice, now: Date): Period {
   const tomorrow = addDays(startOfDay(now), 1);
@@ -48,48 +61,78 @@ export function periodRange(choice: PeriodChoice, now: Date): Period {
       return { start: addDays(tomorrow, -7), end: tomorrow };
     case 'last-30':
       return { start: addDays(tomorrow, -30), end: tomorrow };
-    case 'month':
-      return {
-        start: firstOfMonth(choice.year, choice.month - 1),
-        end: firstOfMonth(choice.year, choice.month),
-      };
+    case 'range': {
+      // Datas trocadas (Até antes do De) valem como o mesmo intervalo.
+      const [a, b] = [parseDay(choice.from), parseDay(choice.to)].sort(
+        (x, y) => x.getTime() - y.getTime(),
+      );
+      return { start: a, end: addDays(b, 1) };
+    }
   }
+}
+
+/** O período cobre exatamente um mês do calendário (do dia 1º ao último dia)? */
+export function isWholeMonth(period: Period): boolean {
+  return (
+    period.start.getDate() === 1 &&
+    period.end.getTime() ===
+      firstOfMonth(period.start.getFullYear(), period.start.getMonth() + 1).getTime()
+  );
 }
 
 /**
  * O período anterior do mesmo tamanho, para comparar. "Este mês" até o dia
  * 13 compara com o dia 1º a 13 do mês passado — e não com o mês passado
- * inteiro, que teria mais dias e sempre pareceria melhor.
+ * inteiro, que teria mais dias e sempre pareceria melhor. Um mês inteiro
+ * compara com o mês anterior inteiro; qualquer outro intervalo, com os
+ * mesmos tantos dias imediatamente antes.
  */
 export function previousPeriod(choice: PeriodChoice, now: Date): Period {
   const current = periodRange(choice, now);
   if (choice.kind === 'this-month') {
     const start = firstOfMonth(now.getFullYear(), now.getMonth() - 1);
-    const days = Math.round((current.end.getTime() - current.start.getTime()) / DAY_MS);
-    const end = addDays(start, days);
+    const end = addDays(start, daysBetween(current.start, current.end));
     const cap = firstOfMonth(now.getFullYear(), now.getMonth());
     return { start, end: end > cap ? cap : end };
   }
-  if (choice.kind === 'last-month' || choice.kind === 'month') {
+  if (isWholeMonth(current)) {
     const start = current.start;
     return { start: firstOfMonth(start.getFullYear(), start.getMonth() - 1), end: start };
   }
-  const days = choice.kind === 'last-7' ? 7 : 30;
+  const days = daysBetween(current.start, current.end);
   return { start: addDays(current.start, -days), end: current.start };
 }
 
 const monthYear = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
 const dayMonth = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short' });
+const dayMonthYear = new Intl.DateTimeFormat('pt-BR', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 const clean = (text: string) => text.replace(/\./g, '');
 
-/** "1 a 13 de set", "agosto de 2026", "15 de ago a 13 de set". */
+/**
+ * "1 a 13 de set", "agosto de 2026", "15 de ago a 13 de set",
+ * "20 de dez de 2025 a 10 de jan de 2026". O ano só aparece quando não é o
+ * ano corrente ou quando o intervalo atravessa a virada do ano.
+ */
 export function periodLabel(choice: PeriodChoice, now: Date): string {
-  const { start, end } = periodRange(choice, now);
-  if (choice.kind === 'last-month' || choice.kind === 'month') return monthYear.format(start);
-  const last = addDays(end, -1);
-  const sameMonth = start.getMonth() === last.getMonth();
-  const from = sameMonth ? String(start.getDate()) : clean(dayMonth.format(start));
-  return `${from} a ${clean(dayMonth.format(last))}`;
+  const period = periodRange(choice, now);
+  const { start } = period;
+  if (isWholeMonth(period)) return monthYear.format(start);
+  const last = addDays(period.end, -1);
+  if (start.getTime() === last.getTime()) {
+    const withYear = start.getFullYear() !== now.getFullYear();
+    return clean((withYear ? dayMonthYear : dayMonth).format(start));
+  }
+  const withYear =
+    start.getFullYear() !== last.getFullYear() || last.getFullYear() !== now.getFullYear();
+  const format = (date: Date) => clean((withYear ? dayMonthYear : dayMonth).format(date));
+  const sameMonth =
+    start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear();
+  const from = sameMonth && !withYear ? String(start.getDate()) : format(start);
+  return `${from} a ${format(last)}`;
 }
 
 export function isInPeriod(movement: Movement, period: Period): boolean {
@@ -179,6 +222,52 @@ export function recipeCost(recipe: Recipe, unitCosts: Map<UUID, number>): CostEs
 
 export type Ranked = { key: string; label: string; value: number };
 export type DailyPoint = { date: Date; revenueCents: Cents; units: number };
+
+export type Granularity = 'day' | 'week' | 'month';
+/** Um ponto do gráfico: [start, end), que pode ser um dia, uma semana ou um mês. */
+export type ChartBucket = { start: Date; end: Date; revenueCents: Cents; units: number };
+
+/**
+ * Agrupa o faturamento diário para o gráfico caber na tela: por dia até 62
+ * dias, por semana (de 7 em 7 dias a partir do início) até um ano, e por mês
+ * do calendário acima disso. Um ano dia a dia seriam 365 colunas de menos de
+ * 1 pixel no celular.
+ */
+export function groupDaily(days: DailyPoint[]): {
+  granularity: Granularity;
+  buckets: ChartBucket[];
+} {
+  const granularity: Granularity =
+    days.length <= 62 ? 'day' : days.length <= 366 ? 'week' : 'month';
+  const buckets: ChartBucket[] = [];
+  for (const day of days) {
+    const current = buckets[buckets.length - 1];
+    const fits =
+      current &&
+      (granularity === 'week'
+        ? day.date < current.end
+        : granularity === 'month' &&
+          day.date.getMonth() === current.start.getMonth() &&
+          day.date.getFullYear() === current.start.getFullYear());
+    if (fits) {
+      current.revenueCents += day.revenueCents;
+      current.units += day.units;
+      continue;
+    }
+    const end =
+      granularity === 'day'
+        ? addDays(day.date, 1)
+        : granularity === 'week'
+          ? addDays(day.date, 7)
+          : firstOfMonth(day.date.getFullYear(), day.date.getMonth() + 1);
+    buckets.push({ start: day.date, end, revenueCents: day.revenueCents, units: day.units });
+  }
+  // A última semana pode ser incompleta: ela termina junto com o período.
+  const last = buckets[buckets.length - 1];
+  const lastDay = days[days.length - 1];
+  if (last && lastDay && last.end > addDays(lastDay.date, 1)) last.end = addDays(lastDay.date, 1);
+  return { granularity, buckets };
+}
 
 export type SupplyUse = {
   supplyId: UUID;

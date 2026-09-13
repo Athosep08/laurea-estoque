@@ -3,6 +3,7 @@ import { isLowStock } from '../domain/inventory';
 import { formatUnitCost } from '../domain/money';
 import {
   buildReport,
+  isWholeMonth,
   periodLabel,
   periodRange,
   previousPeriod,
@@ -99,11 +100,10 @@ const brDay = (date: Date) =>
 const lastDay = (period: Period) =>
   new Date(period.end.getFullYear(), period.end.getMonth(), period.end.getDate() - 1);
 
-/** "laurea-vendas-2026-08.xlsx" para mês fechado; "…-2026-09-01-a-2026-09-13.xlsx" para os outros. */
+/** "laurea-vendas-2026-08.xlsx" quando o período é um mês inteiro; "…-2026-09-01-a-2026-09-13.xlsx" para os outros. */
 export function workbookFileName(kind: WorkbookKind, choice: PeriodChoice, now: Date): string {
   const period = periodRange(choice, now);
-  const wholeMonth = choice.kind === 'last-month' || choice.kind === 'month';
-  const span = wholeMonth
+  const span = isWholeMonth(period)
     ? `${period.start.getFullYear()}-${pad(period.start.getMonth() + 1)}`
     : `${isoDay(period.start)}-a-${isoDay(lastDay(period))}`;
   return `laurea-${FILE_SLUG[kind]}-${span}.xlsx`;

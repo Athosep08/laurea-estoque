@@ -106,12 +106,15 @@ describe('nome do arquivo', () => {
     expect(workbookFileName('sales', { kind: 'last-month' }, NOW)).toBe(
       'laurea-vendas-2026-08.xlsx',
     );
-    expect(workbookFileName('complete', { kind: 'month', year: 2026, month: 7 }, NOW)).toBe(
-      'laurea-relatorio-completo-2026-07.xlsx',
-    );
+    expect(
+      workbookFileName('complete', { kind: 'range', from: '2026-07-01', to: '2026-07-31' }, NOW),
+    ).toBe('laurea-relatorio-completo-2026-07.xlsx');
   });
 
   it('usa as datas quando o período é aberto', () => {
+    expect(
+      workbookFileName('spending', { kind: 'range', from: '2026-09-05', to: '2026-09-20' }, NOW),
+    ).toBe('laurea-gastos-2026-09-05-a-2026-09-20.xlsx');
     expect(workbookFileName('spending', thisMonth, NOW)).toBe(
       'laurea-gastos-2026-09-01-a-2026-09-13.xlsx',
     );

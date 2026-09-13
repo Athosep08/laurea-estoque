@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppShell, type SaveWorkbook } from '../../App';
 import { InMemoryRepository } from '../../infra/storage/InMemoryRepository';
@@ -247,5 +247,54 @@ describe('Relatórios', () => {
     expect(
       screen.getByRole('button', { name: /Baixar relatório completo \(Excel\)/ }),
     ).toBeEnabled();
+  });
+
+  it('Personalizado abre De e Até já com o período atual, e recalcula ao mudar as datas', async () => {
+    const user = userEvent.setup();
+    const saveWorkbook = vi.fn<SaveWorkbook>().mockResolvedValue(undefined);
+    renderReports(saveWorkbook);
+    await openReports(user);
+
+    await user.click(screen.getByRole('button', { name: 'Personalizado' }));
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const from = screen.getByLabelText('De');
+    const to = screen.getByLabelText('Até');
+    expect(from).toHaveValue(iso(firstOfMonth));
+    expect(to).toHaveValue(iso(today));
+    expect(to).toHaveAttribute('max', iso(today));
+
+    // Só o dia 15 do mês passado, que tem uma venda de R$ 107,70.
+    const lastMonth15 = iso(new Date(today.getFullYear(), today.getMonth() - 1, 15));
+    fireEvent.change(from, { target: { value: lastMonth15 } });
+    fireEvent.change(to, { target: { value: lastMonth15 } });
+
+    const overview = screen.getByRole('button', { name: /Visão geral/ });
+    expect(within(overview).getByText('Entrou').nextSibling).toHaveTextContent('R$ 107,70');
+
+    await user.click(screen.getByRole('button', { name: /Baixar relatório completo \(Excel\)/ }));
+    expect(saveWorkbook.mock.calls[0][0].fileName).toBe(
+      `laurea-relatorio-completo-${lastMonth15}-a-${lastMonth15}.xlsx`,
+    );
+  });
+
+  it('apagar uma data não muda o período', async () => {
+    const user = userEvent.setup();
+    renderReports();
+    await openReports(user);
+    await user.click(screen.getByRole('button', { name: 'Personalizado' }));
+    const entrou = () =>
+      within(screen.getByRole('button', { name: /Visão geral/ })).getByText('Entrou').nextSibling
+        ?.textContent;
+    const before = entrou();
+
+    fireEvent.change(screen.getByLabelText('De'), { target: { value: '' } });
+
+    // Compara o texto direto: toHaveTextContent troca o espaço inseparável de "R$ 167,70".
+    expect(entrou()).toBe(before);
+    expect(before).toMatch(/167,70/);
+    expect(screen.getByLabelText('De')).not.toHaveValue('');
   });
 });

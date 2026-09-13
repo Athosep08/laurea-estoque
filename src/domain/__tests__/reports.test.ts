@@ -38,8 +38,11 @@ describe('período', () => {
     expect(ymd(end)).toEqual([2026, 9, 14]);
   });
 
-  it('um mês escolhido é o mês inteiro, inclusive virando o ano', () => {
-    const { start, end } = periodRange({ kind: 'month', year: 2026, month: 12 }, NOW);
+  it('intervalo personalizado inclui o dia final, inclusive virando o ano', () => {
+    const { start, end } = periodRange(
+      { kind: 'range', from: '2026-12-01', to: '2026-12-31' },
+      NOW,
+    );
     expect(ymd(start)).toEqual([2026, 12, 1]);
     expect(ymd(end)).toEqual([2027, 1, 1]);
   });
@@ -61,8 +64,11 @@ describe('período', () => {
     expect(ymd(end)).toEqual([2026, 9, 7]);
   });
 
-  it('mês escolhido compara com o mês anterior', () => {
-    const { start, end } = previousPeriod({ kind: 'month', year: 2026, month: 1 }, NOW);
+  it('intervalo que é um mês inteiro compara com o mês anterior inteiro', () => {
+    const { start, end } = previousPeriod(
+      { kind: 'range', from: '2026-01-01', to: '2026-01-31' },
+      NOW,
+    );
     expect(ymd(start)).toEqual([2025, 12, 1]);
     expect(ymd(end)).toEqual([2026, 1, 1]);
   });

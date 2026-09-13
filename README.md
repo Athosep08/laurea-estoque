@@ -49,9 +49,9 @@ Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do n
 
 ## Relatórios
 
-A aba **Relatório** tem cinco relatórios com o mesmo seletor de período (este mês, mês passado, 7 dias, 30 dias ou qualquer mês), e todos comparam com o período anterior do mesmo tamanho:
+A aba **Relatório** tem cinco relatórios com o mesmo seletor de período (este mês, mês passado, 7 dias, 30 dias ou **Personalizado**, com datas De e Até), e todos comparam com o período anterior do mesmo tamanho — um mês inteiro compara com o mês anterior inteiro:
 
-- **Visão geral** — quanto entrou, saiu e sobrou; faturamento por dia; aromas que mais venderam; quanto sobra em cada vela; o que está acabando.
+- **Visão geral** — quanto entrou, saiu e sobrou; faturamento no tempo (por dia até 2 meses, por semana até um ano, por mês acima disso); aromas que mais venderam; quanto sobra em cada vela; o que está acabando.
 - **Vendas**, **Produção**, **Saídas de estoque** (vendidas, brindes, quebras, perdas) e **Gastos** (por categoria e por insumo, com busca "quanto gastei com…").
 - **Histórico** — todos os lançamentos do período, com Desfazer.
 
