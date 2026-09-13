@@ -18,9 +18,10 @@ PWA de controle de estoque para a L'AUREA Aromas (velas artesanais, Chapecó/SC)
 2. Abra o **SQL Editor** do projeto, cole o conteúdo de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) e rode. Isso cria as tabelas, RLS, grants e as funções RPC que fazem as mutações de estoque de forma atômica (ver "Decisões de arquitetura" abaixo).
 3. Ainda no **SQL Editor**, rode [`supabase/migrations/0002_carga_inicial.sql`](supabase/migrations/0002_carga_inicial.sql). Isso cadastra os 24 insumos reais (cera de coco, as 14 essências, pavio, ilhós, os três frascos, adesivos, sacola e caixa) e os 42 produtos (3 modelos × 14 aromas), cada um com a sua ficha técnica. Os IDs são determinísticos, então rodar duas vezes não duplica nada. Nomes e preços dos modelos vêm da landing page; se mudarem, ajuste no topo do arquivo antes de rodar — o script aborta sem gravar nada se algum preço estiver zerado.
 4. Rode também [`supabase/migrations/0003_valor_pago_entrada.sql`](supabase/migrations/0003_valor_pago_entrada.sql), que faz a entrada de insumo aceitar o valor pago (base do relatório de gastos). Num projeto que já está no ar, **rode esta migration antes de publicar a versão nova do app**: o app novo manda o valor pago e precisa da função atualizada, enquanto o app antigo continua funcionando depois dela. Se algum dia rodar o `0001` de novo, rode o `0003` em seguida.
-5. Vá em **Authentication → Users → Add user**, crie o e-mail/senha compartilhado que os dois dispositivos vão usar para logar, e marque **"Auto Confirm User"**.
-6. Em **Settings (ícone de engrenagem) → API**, copie a **Project URL** e a chave **`anon` `public`** (nunca a `service_role`).
-7. Copie `.env.example` para `.env.local` e preencha:
+5. **Feche o cadastro público:** em **Authentication → Sign In / Providers → Email**, desligue **"Allow new users to sign up"**. As regras de acesso liberam tudo para qualquer usuário logado, e a chave do app é pública (vai dentro do site); com o cadastro aberto, qualquer pessoa conseguiria criar uma conta e mexer no estoque.
+6. Vá em **Authentication → Users → Add user**, crie o e-mail/senha compartilhado que os dois dispositivos vão usar para logar, e marque **"Auto Confirm User"**.
+7. Em **Project Settings → API Keys**, copie a **Project URL** e a chave **`anon` `public`** (nunca a `service_role`).
+8. Copie `.env.example` para `.env.local` e preencha:
    ```
    VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
    VITE_SUPABASE_ANON_KEY=<sua-chave-anon>
@@ -46,6 +47,10 @@ npm run dev:demo
 ```
 
 Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do navegador e começam com a mesma carga inicial do seed (receitas, preços, cera e essências reais), completada com estoques de exemplo onde o stakeholder ainda não respondeu. O botão **Recomeçar**, na faixa do topo, volta tudo ao estado inicial. A configuração está em [`.env.demo`](.env.demo); o `npm run dev` normal continua usando o Supabase.
+
+## Deploy
+
+O passo a passo para colocar no ar (Supabase + Vercel) e para publicar versões novas está em [`docs/deploy.md`](docs/deploy.md).
 
 ## Relatórios
 
