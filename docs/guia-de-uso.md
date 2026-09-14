@@ -35,6 +35,9 @@ conta como compra e entraria no relatório de gastos.
 A tela inicial pergunta **o que você vai lançar**. Depois é só escolher:
 recipiente → aroma → preencher.
 
+> **Os testes abaixo viram lançamentos de verdade.** Se for só para conhecer,
+> toque em **Desfazer** na tela de confirmação logo depois.
+
 | Quadrado              | Para que serve                                                                                                                                    | Como testar                                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Vender**            | Registrar uma vela que saiu. Tira do estoque e entra no faturamento                                                                               | Vender → Recipiente Fosco → Lavanda → quantidade 1. O valor vem preenchido; dá para mudar se tiver desconto |
