@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { eraseAll, exportBackup, importBackup } from '../../infra/storage/backup';
+import { formatDay } from '../../domain/reports';
+import { saveBlob } from '../saveFile';
 import type { EstoqueRepository } from '../../infra/storage/EstoqueRepository';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 
@@ -16,13 +18,10 @@ export function BackupScreen({ repository, inventory, isOnline }: BackupScreenPr
   async function handleExport() {
     const json = await exportBackup(repository);
     const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `laurea-estoque-backup-${stamp}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Data local no nome: toISOString() usaria UTC e, às 22h em Chapecó, já seria o dia seguinte.
+    // saveBlob entrega pelo menu de compartilhar no iPhone com o app instalado, onde o
+    // download direto não funciona.
+    await saveBlob(blob, `laurea-estoque-backup-${formatDay(new Date())}.json`);
   }
 
   async function handleImportFile(file: File) {
