@@ -76,6 +76,22 @@ export function useInventory(repository: EstoqueRepository) {
     reload();
   }, [reload]);
 
+  // Dois celulares usam o mesmo estoque. Sem isso, o que um lançou só aparecia
+  // no outro quando o app fosse fechado e aberto de novo — e no iPhone, voltar
+  // para um app em segundo plano não reabre nada. Recarrega ao voltar para a
+  // tela e quando a conexão volta.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') reload();
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [reload]);
+
   const sell = useCallback(
     async (input: RegisterSaleInput) => {
       const result = await registerSale(repository, input);
