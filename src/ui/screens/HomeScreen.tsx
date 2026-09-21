@@ -5,6 +5,7 @@ import { isLowStock } from '../../domain/inventory';
 import { formatBRL } from '../../domain/money';
 import { formatQuantity } from '../../domain/quantity';
 import type { UseInventoryReturn } from '../hooks/useInventory';
+import { failureMessage } from '../failureMessage';
 import { inputClassName } from '../components/Field';
 import { SellForm } from '../components/SellForm';
 import { ProduceForm } from '../components/ProduceForm';
@@ -160,6 +161,11 @@ export function HomeScreen({ inventory, isOnline, onOpenStock }: HomeScreenProps
       } else {
         setError(onFailure(result));
       }
+    } catch (cause) {
+      // Sem este catch a falha virava promessa rejeitada e a tela ficava igual,
+      // como se o botão não tivesse sido tocado.
+      console.error('Falha ao registrar lançamento', cause);
+      setError(failureMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -181,6 +187,9 @@ export function HomeScreen({ inventory, isOnline, onOpenStock }: HomeScreenProps
       } else {
         setError('Não foi possível desfazer este lançamento.');
       }
+    } catch (cause) {
+      console.error('Falha ao desfazer lançamento', cause);
+      setError(failureMessage(cause));
     } finally {
       setBusy(false);
     }

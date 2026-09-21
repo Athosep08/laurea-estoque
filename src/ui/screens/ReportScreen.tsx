@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Movement, Product } from '../../domain/models';
 import { isLowStock } from '../../domain/inventory';
+import { failureMessage } from '../failureMessage';
 import { formatBRL, formatUnitCost } from '../../domain/money';
 import { formatQuantity } from '../../domain/quantity';
 import {
@@ -720,15 +721,20 @@ function History({
 
   async function handleUndo(movement: Movement) {
     if (!window.confirm('Desfazer este lançamento? O efeito no estoque será revertido.')) return;
-    const result = await undo(movement.id);
-    if (!result.ok) {
-      window.alert(
-        result.reason === 'negative_result'
-          ? `Não é possível desfazer: o estoque ficaria negativo (${result.resulting}).`
-          : result.reason === 'already_undone'
-            ? 'Este lançamento já foi desfeito.'
-            : 'Não foi possível desfazer este lançamento.',
-      );
+    try {
+      const result = await undo(movement.id);
+      if (!result.ok) {
+        window.alert(
+          result.reason === 'negative_result'
+            ? `Não é possível desfazer: o estoque ficaria negativo (${result.resulting}).`
+            : result.reason === 'already_undone'
+              ? 'Este lançamento já foi desfeito.'
+              : 'Não foi possível desfazer este lançamento.',
+        );
+      }
+    } catch (cause) {
+      console.error('Falha ao desfazer lançamento', cause);
+      window.alert(failureMessage(cause));
     }
   }
 

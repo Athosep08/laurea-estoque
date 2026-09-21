@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
-import { eraseAll, exportBackup, importBackup } from '../../infra/storage/backup';
+import { exportBackup, importBackup } from '../../infra/storage/backup';
 import { formatDay } from '../../domain/reports';
 import { saveBlob } from '../saveFile';
+import { failureMessage } from '../failureMessage';
 import type { EstoqueRepository } from '../../infra/storage/EstoqueRepository';
 import type { UseInventoryReturn } from '../hooks/useInventory';
 
@@ -13,39 +14,39 @@ type BackupScreenProps = {
 
 export function BackupScreen({ repository, inventory, isOnline }: BackupScreenProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [message, setMessage] = useState<string | undefined>();
+  const [message, setMessage] = useState<{ text: string; failed: boolean } | undefined>();
+
+  const inform = (text: string) => setMessage({ text, failed: false });
+  const fail = (text: string) => setMessage({ text, failed: true });
 
   async function handleExport() {
-    const json = await exportBackup(repository);
-    const blob = new Blob([json], { type: 'application/json' });
-    // Data local no nome: toISOString() usaria UTC e, às 22h em Chapecó, já seria o dia seguinte.
-    // saveBlob entrega pelo menu de compartilhar no iPhone com o app instalado, onde o
-    // download direto não funciona.
-    await saveBlob(blob, `laurea-estoque-backup-${formatDay(new Date())}.json`);
+    try {
+      const json = await exportBackup(repository);
+      const blob = new Blob([json], { type: 'application/json' });
+      // Data local no nome: toISOString() usaria UTC e, às 22h em Chapecó, já seria o dia seguinte.
+      // saveBlob entrega pelo menu de compartilhar no iPhone com o app instalado, onde o
+      // download direto não funciona.
+      await saveBlob(blob, `laurea-estoque-backup-${formatDay(new Date())}.json`);
+    } catch (cause) {
+      console.error('Falha ao exportar backup', cause);
+      fail(failureMessage(cause));
+    }
   }
 
   async function handleImportFile(file: File) {
-    const text = await file.text();
-    const result = await importBackup(repository, text);
-    if (result.ok) {
-      await inventory.reload();
-      setMessage('Backup importado com sucesso.');
-    } else {
-      setMessage('Não foi possível importar: arquivo inválido.');
+    try {
+      const text = await file.text();
+      const result = await importBackup(repository, text);
+      if (result.ok) {
+        await inventory.reload();
+        inform('Backup importado com sucesso.');
+      } else {
+        fail('Não foi possível importar: arquivo inválido.');
+      }
+    } catch (cause) {
+      console.error('Falha ao importar backup', cause);
+      fail(failureMessage(cause));
     }
-  }
-
-  async function handleEraseAll() {
-    if (
-      !window.confirm(
-        'Apagar TODOS os dados (velas, insumos e histórico)? Esta ação não pode ser desfeita.',
-      )
-    ) {
-      return;
-    }
-    await eraseAll(repository);
-    await inventory.reload();
-    setMessage('Todos os dados foram apagados.');
   }
 
   return (
@@ -93,25 +94,9 @@ export function BackupScreen({ repository, inventory, isOnline }: BackupScreenPr
         </button>
       </div>
 
-      <div className="mb-6 rounded-lg border border-alert/30 bg-paper p-4">
-        <h2 className="mb-2 font-medium text-alert">Apagar tudo</h2>
-        <p className="mb-3 text-sm text-taupe">
-          Remove permanentemente todas as velas, insumos e o histórico. Exporte um backup antes.
-        </p>
-        <button
-          type="button"
-          onClick={handleEraseAll}
-          disabled={!isOnline}
-          title={!isOnline ? 'Indisponível offline' : undefined}
-          className="rounded-md bg-alert px-4 py-2 font-medium text-paper hover:bg-alert/90 disabled:opacity-50"
-        >
-          Apagar tudo
-        </button>
-      </div>
-
       {message && (
-        <p role="status" className="text-sm text-ok">
-          {message}
+        <p role="status" className={`text-sm ${message.failed ? 'text-alert' : 'text-ok'}`}>
+          {message.text}
         </p>
       )}
     </section>
