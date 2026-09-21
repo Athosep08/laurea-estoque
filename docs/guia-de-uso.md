@@ -103,7 +103,6 @@ houver entradas com valor, o relatório mostra "sem custo" em vez de inventar.
 | ------------------- | ---------------------------------------------------------------------------------- |
 | **Exportar backup** | Salva um arquivo com tudo (velas, insumos e histórico). Bom fazer de vez em quando |
 | **Importar**        | Troca **todos** os dados atuais pelos de um backup. Só em caso de problema         |
-| **Apagar tudo**     | Apaga tudo, sem volta. **Não mexam** sem falar comigo                              |
 
 ## 6. O que observar enquanto testam
 

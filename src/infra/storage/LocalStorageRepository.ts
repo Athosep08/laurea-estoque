@@ -128,8 +128,4 @@ export class LocalStorageRepository implements EstoqueRepository {
   async replaceState(state: EstoqueState): Promise<void> {
     this.write(state);
   }
-
-  async eraseAll(): Promise<void> {
-    this.write(createEmptyState());
-  }
 }

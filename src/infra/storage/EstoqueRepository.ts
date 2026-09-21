@@ -56,5 +56,4 @@ export interface EstoqueRepository {
   /** Usado por backup/restauração, que operam sobre o estado inteiro. */
   getState(): Promise<EstoqueState>;
   replaceState(state: EstoqueState): Promise<void>;
-  eraseAll(): Promise<void>;
 }

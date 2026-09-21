@@ -20,7 +20,3 @@ export async function importBackup(
   await repository.replaceState(migrate(parsed));
   return { ok: true };
 }
-
-export async function eraseAll(repository: EstoqueRepository): Promise<void> {
-  await repository.eraseAll();
-}

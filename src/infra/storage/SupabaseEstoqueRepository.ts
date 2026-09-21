@@ -352,9 +352,4 @@ export class SupabaseEstoqueRepository implements EstoqueRepository {
     const { error } = await this.client.rpc('replace_state', { p_state: state });
     if (error) throw error;
   }
-
-  async eraseAll(): Promise<void> {
-    const { error } = await this.client.rpc('erase_all');
-    if (error) throw error;
-  }
 }

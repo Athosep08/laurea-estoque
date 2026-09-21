@@ -129,8 +129,4 @@ export class InMemoryRepository implements EstoqueRepository {
   async replaceState(state: EstoqueState): Promise<void> {
     this.state = state;
   }
-
-  async eraseAll(): Promise<void> {
-    this.state = { products: [], supplies: [], recipes: [], movements: [] };
-  }
 }
