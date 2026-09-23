@@ -39,7 +39,18 @@ Celular / navegador
 
 Tudo no painel do projeto em [supabase.com](https://supabase.com/dashboard).
 
-### 1.0 Se aparecer "Project is paused"
+### 1.0 Criando um projeto do zero
+
+Só para uma instância nova; se o projeto já existe, pule para o 1.1.
+
+- [ ] Crie o projeto em [supabase.com](https://supabase.com/dashboard), na
+      região `sa-east-1` (São Paulo).
+- [ ] Na tela de criação, mantenha **"Enable Data API"** marcado, **desmarque
+      "Automatically expose new tables"** e **marque "Enable automatic RLS"**.
+      Assim nenhuma tabela nasce aberta: quem libera o acesso são as políticas
+      da migration `0001`.
+
+### 1.0.1 Se aparecer "Project is paused"
 
 O plano gratuito pausa o projeto depois de 7 dias sem nenhum acesso. Os dados
 continuam lá.

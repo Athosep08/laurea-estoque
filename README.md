@@ -1,140 +1,143 @@
 # L'AUREA Estoque
 
-PWA de controle de estoque para a L'AUREA Aromas (velas artesanais, Chapecó/SC). Cadastro de velas e insumos, produção com baixa automática de receita, registro de vendas, ajustes de estoque com justificativa, relatórios por período (visão geral, vendas, produção, saídas de estoque e gastos) e backup/restauração — com um backend real (Supabase/Postgres) para uso simultâneo em N dispositivos, login compartilhado e modo offline somente leitura.
+PWA de estoque, produção e relatórios para a L'AUREA Aromas — velas artesanais feitas em Chapecó/SC. Duas pessoas, um login compartilhado, uso no celular durante a produção e a venda.
+
+**No ar:** [laurea-estoque.pages.dev](https://laurea-estoque.pages.dev) · Cloudflare Pages + Supabase (Postgres, `sa-east-1`)
+
+Este README é a documentação técnica do projeto: as decisões que tomei, os caminhos que escolhi e o que assumi em troca. O passo a passo de operação está em [`docs/deploy.md`](docs/deploy.md); o guia para quem usa o app, em [`docs/guia-de-uso.md`](docs/guia-de-uso.md).
+
+|                         |                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| Código                  | ~7.400 linhas de TypeScript `strict` + 741 de SQL                              |
+| Testes                  | 155 em 20 arquivos, sem mock de rede                                           |
+| Dados reais             | 24 insumos, 42 produtos (3 recipientes × 14 aromas), cada um com ficha própria |
+| Dependências de runtime | 4: `react`, `react-dom`, `@supabase/supabase-js`, `write-excel-file`           |
 
 ## Stack
 
-- [Vite](https://vitejs.dev/) + [React 18](https://react.dev/) + TypeScript (`strict`)
-- [Supabase](https://supabase.com/) (Postgres + Auth + API) como backend
-- [Tailwind CSS](https://tailwindcss.com/) para estilo
-- [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) para testes
-- [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) para instalação/offline
-- ESLint + Prettier para qualidade e formatação
-- GitHub Actions para CI (lint → typecheck → test → build)
+- [Vite](https://vitejs.dev/) + [React 18](https://react.dev/) + TypeScript `strict`
+- [Supabase](https://supabase.com/) — Postgres, Auth e API; a lógica de concorrência vive em funções `plpgsql`
+- [Tailwind CSS](https://tailwindcss.com/) com tokens da identidade da marca
+- [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/)
+- [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) (Workbox) para instalação e leitura offline
+- ESLint + Prettier, e GitHub Actions rodando lint → typecheck → test → build
 
-## Configurando o Supabase (uma vez, por instância do projeto)
+## Arquitetura
 
-1. Crie um projeto em [supabase.com](https://supabase.com/). Na tela de criação, mantenha **"Enable Data API"** marcado, **desmarque "Automatically expose new tables"** e **marque "Enable automatic RLS"**.
-2. Abra o **SQL Editor** do projeto, cole o conteúdo de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) e rode. Isso cria as tabelas, RLS, grants e as funções RPC que fazem as mutações de estoque de forma atômica (ver "Decisões de arquitetura" abaixo).
-3. Ainda no **SQL Editor**, rode [`supabase/migrations/0002_carga_inicial.sql`](supabase/migrations/0002_carga_inicial.sql). Isso cadastra os 24 insumos reais (cera de coco, as 14 essências, pavio, ilhós, os três frascos, adesivos, sacola e caixa) e os 42 produtos (3 modelos × 14 aromas), cada um com a sua ficha técnica. Os IDs são determinísticos, então rodar duas vezes não duplica nada. Nomes e preços dos modelos vêm da landing page; se mudarem, ajuste no topo do arquivo antes de rodar — o script aborta sem gravar nada se algum preço estiver zerado.
-4. Rode também [`supabase/migrations/0003_valor_pago_entrada.sql`](supabase/migrations/0003_valor_pago_entrada.sql), que faz a entrada de insumo aceitar o valor pago (base do relatório de gastos). Num projeto que já está no ar, **rode esta migration antes de publicar a versão nova do app**: o app novo manda o valor pago e precisa da função atualizada, enquanto o app antigo continua funcionando depois dela. Se algum dia rodar o `0001` de novo, rode o `0003` em seguida.
-5. **Feche o cadastro público:** em **Authentication → Sign In / Providers → Email**, desligue **"Allow new users to sign up"**. As regras de acesso liberam tudo para qualquer usuário logado, e a chave do app é pública (vai dentro do site); com o cadastro aberto, qualquer pessoa conseguiria criar uma conta e mexer no estoque.
-6. Vá em **Authentication → Users → Add user**, crie o e-mail/senha compartilhado que os dois dispositivos vão usar para logar, e marque **"Auto Confirm User"**.
-7. Em **Project Settings → API Keys**, copie a **Project URL** e a chave **`anon` `public`** (nunca a `service_role`).
-8. Copie `.env.example` para `.env.local` e preencha:
-   ```
-   VITE_SUPABASE_URL=https://<seu-projeto>.supabase.co
-   VITE_SUPABASE_ANON_KEY=<sua-chave-anon>
-   ```
-   `.env.local` não é versionado.
-
-## Rodando localmente
-
-```bash
-npm install
-npm run dev        # ambiente de desenvolvimento
-npm run build      # build de produção (dist/)
-npm test           # suíte de testes (Vitest)
-npm run lint        # ESLint
-npm run typecheck   # tsc --noEmit
-npm run format      # Prettier (grava)
-```
-
-### Modo demonstração (sem Supabase)
-
-```bash
-npm run dev:demo
-```
-
-Abre o app sem login e sem tocar no banco. Os dados ficam no `localStorage` do navegador e começam com a mesma carga inicial do seed (receitas, preços, cera e essências reais), completada com estoques de exemplo onde o stakeholder ainda não respondeu. O botão **Recomeçar**, na faixa do topo, volta tudo ao estado inicial. A configuração está em [`.env.demo`](.env.demo); o `npm run dev` normal continua usando o Supabase.
-
-## Deploy
-
-O passo a passo para colocar no ar (Supabase + Cloudflare Pages) e para publicar versões novas está em [`docs/deploy.md`](docs/deploy.md).
-
-## Relatórios
-
-A aba **Relatório** tem cinco relatórios com o mesmo seletor de período (este mês, mês passado, 7 dias, 30 dias ou **Personalizado**, com datas De e Até), e todos comparam com o período anterior do mesmo tamanho — um mês inteiro compara com o mês anterior inteiro:
-
-- **Visão geral** — quanto entrou, saiu e sobrou; faturamento no tempo (por dia até 2 meses, por semana até um ano, por mês acima disso); aromas que mais venderam; quanto sobra em cada vela; o que está acabando.
-- **Vendas**, **Produção**, **Saídas de estoque** (vendidas, brindes, quebras, perdas) e **Gastos** (por categoria e por insumo, com busca "quanto gastei com…").
-- **Histórico** — todos os lançamentos do período, com Desfazer.
-
-O cálculo fica em [`src/domain/reports.ts`](src/domain/reports.ts), em funções puras. Duas regras que valem saber:
-
-- **Custo de insumo** é a média ponderada do que foi pago nas entradas com valor, de todo o histórico. Insumo sem nenhuma entrada com valor aparece como "sem custo" — o relatório não inventa número.
-- **Categoria de insumo** (Cera, Essências, Frascos, Montagem, Embalagem) é deduzida do nome, porque o cadastro não tem esse campo.
-
-### Exportar para Excel
-
-O botão **Baixar relatório completo (Excel)**, no início dos relatórios, gera um `.xlsx` com todas as abas (Resumo, Vendas, Por vela, Produção, Insumos usados, Entradas de insumo, Gastos por insumo, Saídas por motivo, Perdas e brindes, Estoque de velas e Estoque de insumos). Dentro de cada relatório, **Exportar para Excel** gera só as abas daquele relatório. Os dois respeitam o período escolhido, que também vai no nome do arquivo (`laurea-vendas-2026-08.xlsx`).
-
-- Dinheiro vai como **número** com formato de real, não como texto, para dar para somar e filtrar no Excel.
-- O conteúdo da planilha é montado em [`src/application/reportWorkbook.ts`](src/application/reportWorkbook.ts), sem biblioteca; o arquivo é gravado em [`src/infra/export/xlsxWorkbook.ts`](src/infra/export/xlsxWorkbook.ts) com [`write-excel-file`](https://www.npmjs.com/package/write-excel-file), carregada só na hora de exportar.
-- No iPhone com o app instalado na tela inicial, o arquivo vai pelo menu de compartilhar do sistema (salvar em Arquivos, WhatsApp...), porque lá o download direto não funciona de forma confiável.
-
-## Decisões de arquitetura
-
-O projeto segue **arquitetura hexagonal (ports & adapters)**, organizada em quatro camadas com fronteiras estritas:
+Arquitetura hexagonal (ports & adapters), com quatro camadas e fronteiras que os imports respeitam:
 
 ```
 src/
-  domain/        regras de negócio puras — zero I/O, zero React, zero Date() direto
-  application/   casos de uso — hoje são delegadores finos para o repositório (ver abaixo)
-  infra/         adaptadores — SupabaseEstoqueRepository (produção), LocalStorageRepository/InMemoryRepository (fallback local e testes)
-  ui/            componentes React — nunca chamam o repositório diretamente
+  domain/        regras puras — sem I/O, sem React, sem new Date() solto
+  application/   casos de uso — hoje delegadores finos para a porta
+  infra/         adaptadores — Supabase (produção), localStorage e memória (demo e testes)
+  ui/            React — nunca importa infra/ nem chama o repositório direto
 supabase/
-  migrations/    schema SQL, RLS e funções RPC — fonte da verdade do backend
+  migrations/    schema, RLS e funções RPC: a fonte da verdade do backend
 ```
 
-**Por que essa separação.** O domínio (`domain/`) contém funções puras (`sell`, `produce`, `adjustProductQuantity`, `buildReport`, etc.) que recebem estado e devolvem um novo estado, sem efeitos colaterais. Isso torna as regras de negócio (baixa de receita na produção, impedir estoque negativo na venda, exigir justificativa em ajuste, undo exato de movimentações) testáveis sem mocks, sem DOM e sem rede — e são a mesma lógica usada pelo `LocalStorageRepository`/`InMemoryRepository`.
+O caminho de uma ação é sempre o mesmo:
 
-A UI (`ui/`) nunca importa `infra/` nem chama o repositório diretamente — todo acesso passa pelo hook `useInventory`, que também centraliza o padrão "executa ação → recarrega estado" (agora assíncrono, com `loading`/`error`).
+```
+componente → useInventory → application/<caso de uso> → EstoqueRepository (porta)
+                                                          ├── SupabaseEstoqueRepository → RPC plpgsql
+                                                          ├── LocalStorageRepository ──┐
+                                                          └── InMemoryRepository ──────┴→ domain/
+```
 
-### De localStorage para Supabase: por que a porta mudou de forma
+O hook `useInventory` é o único ponto que a UI conhece. Ele centraliza o padrão "executa a ação → recarrega o estado" e expõe `loading` e `error`, então nenhum componente invalida cache na mão.
 
-A primeira versão deste projeto guardava tudo em `localStorage`: um único dispositivo, sem concorrência. Ao migrar para um backend real usado por N dispositivos ao mesmo tempo, a pergunta central foi **onde garantir atomicidade** — por exemplo, duas vendas simultâneas do mesmo produto não podem, juntas, deixar o estoque negativo mesmo que cada uma isoladamente pareça válida no momento em que foi lida.
+## Decisões técnicas
 
-Isso só pode ser garantido por quem tem uma transação real com lock de linha: o banco. Por isso a porta `EstoqueRepository` deixou de ser um CRUD genérico (`listX`/`saveX`/`appendMovement`) manipulado por `application/*.ts`, e passou a expor diretamente os **casos de uso de negócio como métodos atômicos** (`registerSale`, `registerProduction`, `registerSupplyPurchase`, `adjustStock`, `undoMovement`). `application/*.ts` hoje são wrappers finos que só repassam para `repository.<método>()` — mantidos por consistência de import na UI, não porque orquestrem algo.
+### Atomicidade no banco, não no cliente
 
-No adapter do Supabase, cada um desses métodos chama uma função `plpgsql` (`supabase/migrations/0001_init.sql`) que faz `select ... for update` na(s) linha(s) envolvida(s), valida a regra de negócio dentro da própria transação e só então grava — eliminando a corrida entre "ler saldo" e "gravar novo saldo" que existiria se a validação ficasse só no client. Erros de negócio (estoque insuficiente, insumo faltando, ajuste que resultaria em negativo) são levantados como `raise exception` com um payload JSON (`{"reason": "...", ...}`) e reconstituídos no client em `parseRpcError`, preservando os mesmos tipos de retorno discriminados que a versão local já usava.
+A primeira versão guardava tudo em `localStorage`: um aparelho, zero concorrência. Ao migrar para um backend de verdade, com dois celulares no mesmo estoque, a pergunta central passou a ser **onde garantir atomicidade**. Duas vendas simultâneas da mesma vela não podem, somadas, deixar o estoque negativo, mesmo que cada uma pareça válida no instante em que leu o saldo.
 
-**Trade-off assumido, não escondido:** as regras de negócio existem duplicadas — em TypeScript (`domain/inventory.ts`, `domain/production.ts`, usadas pelos adapters locais e pelos testes de domínio) e em SQL (usadas pelo adapter do Supabase, fonte da verdade para concorrência real). Alternativas (mover tudo para o banco via triggers only, ou tentar orquestrar locks otimistas no client) pareciam mais complexas para o ganho, dado que o volume de regras é pequeno e estável.
+Só quem tem transação e lock de linha resolve isso: o banco. Então a porta `EstoqueRepository` deixou de ser um CRUD genérico (`listX` / `saveX` / `appendMovement`) orquestrado no cliente e passou a expor **os casos de uso como métodos atômicos**: `registerSale`, `registerProduction`, `registerSupplyPurchase`, `adjustStock`, `undoMovement`.
 
-**Toda mutação de estoque gera uma `Movement` registrada** (venda, produção, compra de insumo, ajuste), tanto localmente quanto no Postgres. Não existe alteração de quantidade "solta": mesmo os ajustes manuais (com justificativa obrigatória) passam pelo mesmo mecanismo, o que permite desfazer (undo) qualquer operação de forma auditável.
+No adapter do Supabase, cada um chama uma função `plpgsql` que dá `select … for update` nas linhas envolvidas, valida a regra dentro da própria transação e só então grava. Isso elimina a corrida entre ler o saldo e gravar o novo. Erros de negócio sobem como `raise exception` com um payload JSON (`{"reason": "insufficient_stock", …}`) e voltam a ser tipos discriminados no cliente, os mesmos que a versão local já usava.
 
-**Desfazer é feito com o snapshot histórico, não com o estado atual.** Ao desfazer uma produção, o sistema devolve aos insumos exatamente as quantidades registradas em `consumed_supplies` no momento da produção — não recalcula com base na receita atual. Isso evita o problema clássico de "receita mudou depois, e o undo devolve a quantidade errada". Undos são soft-delete (`undone: true`), preservando o histórico.
+**O trade-off, explícito:** as regras existem duas vezes — em TypeScript (`domain/inventory.ts`, `domain/production.ts`, usadas pelos adapters locais e pelos testes) e em SQL (fonte da verdade sob concorrência real). Considerei empurrar tudo para o banco com triggers, ou fazer lock otimista no cliente; para um conjunto de regras pequeno e estável, as duas alternativas custavam mais do que entregavam.
 
-**Dinheiro em centavos inteiros** (`Cents = number`) em vez de ponto flutuante, para evitar erros de arredondamento em preços.
+### Estoque é um livro de lançamentos, não um número editável
 
-**Quantidades de insumos usam arredondamento controlado** (6 casas decimais, tanto em `domain/inventory.ts` quanto via `round(...)` nas funções SQL) porque medidas fracionárias (kg, L) geram erro de ponto flutuante (ex.: `0.18 * 10 = 1.7999999999999998`). Sem esse cuidado, consumos de receita e reversões de produção acumulariam erro.
+Nenhuma quantidade muda "solta". Venda, produção, entrada de insumo e ajuste geram um `Movement`, inclusive os ajustes manuais, que exigem justificativa. É o que torna o histórico auditável e qualquer operação reversível.
 
-**Falhas de negócio esperadas usam tipos de retorno discriminados** (`{ ok: true, ... } | { ok: false, reason: ... }`), não `throw`. Exceções ficam reservadas para bugs/estado inválido, não para casos previstos como "estoque insuficiente" ou "insumo faltando".
+**Desfazer usa o retrato do passado, não a receita de hoje.** Ao desfazer uma produção, o app devolve aos insumos exatamente o que ficou registrado em `consumed_supplies` naquele momento. Se a ficha técnica mudou depois, o undo continua correto — o erro clássico de recalcular pela receita atual não acontece. Undo é soft delete (`undone: true`), então o histórico nunca perde a linha.
 
-**Login compartilhado, não multiusuário.** Os dois dispositivos autenticam com o mesmo e-mail/senha via Supabase Auth (`useAuth`); não há cadastro nem contas por pessoa. A política de RLS de cada tabela é `for all to authenticated using (true)` — qualquer sessão autenticada tem acesso total, já que não existe noção de "dono da linha" neste app.
+### Dinheiro e medidas
 
-**Modo offline é somente leitura, por decisão explícita.** Os dados lidos (GET) da API do Supabase ficam em cache via `runtimeCaching` do `vite-plugin-pwa` (Workbox `NetworkFirst`), então o app abre e mostra o último estado conhecido sem rede. Todas as ações de escrita (vender, produzir, comprar insumo, ajustar, desfazer, salvar cadastro, importar/apagar backup) são desabilitadas na UI quando `navigator.onLine` é falso (`useOnlineStatus`) — evitando o problema de reconciliar escritas feitas offline em múltiplos dispositivos, o que exigiria uma estratégia de sync/merge fora do escopo atual.
+Dinheiro é **centavo inteiro** (`Cents = number`) do banco à tela; nenhum preço passa por ponto flutuante. Quantidades de insumo usam **arredondamento controlado em 6 casas**, no TypeScript e no SQL, porque medida fracionária acumula erro (`0.18 * 10 = 1.7999999999999998`). Sem isso, consumo de receita e reversão de produção iriam derivando.
 
-**`<dialog>` nativo em vez de modal customizado** (`Dialog.tsx`): fechamento com Esc e devolução de foco já vêm de graça do navegador. O ambiente de teste (jsdom) não implementa `showModal`/`close`, então há um polyfill mínimo em `src/test/setup.ts` só para os testes — o navegador real usa o comportamento nativo.
+### Falha prevista é retorno; falha inesperada tem que aparecer
+
+Casos previstos — estoque insuficiente, insumo faltando, ajuste que deixaria negativo — são retorno discriminado (`{ ok: true } | { ok: false, reason }`), não exceção. Exceção fica para bug e estado inválido.
+
+O que a produção me ensinou: **isso não basta**. Uma falha de infraestrutura (erro do Postgres, conexão caindo, sessão vencida) subia como promessa rejeitada e ninguém a tratava, então a tela ficava idêntica. Quem usava clicava em "Registrar produção" e nada acontecia — o pior tipo de defeito, o que não deixa pista. Hoje toda falha inesperada vira texto na tela, com o detalhe técnico no fim para quem for relatar, e sessão vencida tem mensagem própria dizendo o que fazer ([`src/ui/failureMessage.ts`](src/ui/failureMessage.ts)).
+
+### Login compartilhado, e o que isso obriga
+
+São duas pessoas e um login: não existe conta por pessoa nem noção de dono da linha, então a política de RLS é `for all to authenticated using (true)`. A consequência é que **fechar o cadastro público não é opcional** — a chave `anon` viaja dentro do site, e com o cadastro aberto qualquer pessoa criaria uma conta e entraria no estoque. O roteiro de deploy trata esse passo como obrigatório e mostra como conferir pela API.
+
+### Offline é somente leitura, por decisão
+
+As leituras da API ficam em cache com Workbox (`NetworkFirst`), então o app abre sem rede e mostra o último estado conhecido. Toda escrita é desabilitada quando `navigator.onLine` é falso.
+
+Escrita offline exigiria reconciliar lançamentos feitos em dois aparelhos sem conexão — merge, resolução de conflito, fila de sincronização. Para um estoque em que os dois lançam do mesmo lugar e quase sempre com sinal, o custo não se justificava ainda. A decisão é reversível e está isolada: passaria por `useOnlineStatus` e pelo adapter, não pelo domínio.
+
+Os dois aparelhos veem o mesmo estoque, então `useInventory` recarrega quando a aba volta a ficar visível e quando a conexão retorna. Sem isso, um celular só veria o lançamento do outro depois de fechar e abrir o app — e no iPhone, voltar para um app em segundo plano não recarrega nada.
+
+### Relatórios como funções puras
+
+Todo o cálculo é função pura em [`src/domain/reports.ts`](src/domain/reports.ts), com o `now` recebido por parâmetro: dá para testar qualquer período sem congelar o relógio. Três regras que valem registrar:
+
+- **Fuso local, sempre.** Datas são montadas e formatadas em horário local, nunca por `toISOString()`, senão às 22h em Chapecó um lançamento cairia no dia seguinte.
+- **Custo de insumo é média ponderada** das entradas que têm valor pago, sobre todo o histórico. Insumo sem nenhuma entrada com valor aparece como "sem custo": o relatório não inventa número, e a margem da vela deixa de ser exibida em vez de mentir.
+- **Categoria de insumo é deduzida do nome** (Cera, Essências, Frascos, Montagem, Embalagem), porque o cadastro não tem esse campo e criá-lo obrigaria o cliente a classificar 24 itens antes de ver o primeiro relatório.
+
+A granularidade do gráfico acompanha o período: por dia até dois meses, por semana até um ano, por mês acima disso.
+
+### Excel sem acoplar a planilha ao domínio
+
+O conteúdo da planilha é montado como modelo puro em [`src/application/reportWorkbook.ts`](src/application/reportWorkbook.ts) e só depois vira arquivo em [`src/infra/export/xlsxWorkbook.ts`](src/infra/export/xlsxWorkbook.ts), com `write-excel-file` carregada por import dinâmico — quem nunca exporta não baixa a biblioteca. Dinheiro vai como **número** com formato de real, não texto, para somar e filtrar no Excel. Somas são feitas em centavos e convertidas no fim, senão a planilha mostra `167.70000000000002`.
+
+No iPhone com o app instalado na tela inicial, download direto não funciona de forma confiável, então o arquivo sai pelo menu de compartilhar do sistema ([`src/ui/saveFile.ts`](src/ui/saveFile.ts)).
+
+### Detalhes que economizaram código
+
+- **`<dialog>` nativo** em vez de modal próprio: Esc e devolução de foco vêm do navegador. O jsdom não implementa `showModal`, então existe um polyfill mínimo em `src/test/setup.ts`, só para os testes.
+- **Seed idempotente:** os IDs da carga inicial vêm de `md5('laurea:<tipo>:<nome>')`, então rodar a migration duas vezes não duplica nada. Ela também aborta sem gravar se algum preço estiver zerado, para não cadastrar 42 produtos a R$ 0,00.
+- **Modo demonstração** (`npm run dev:demo`) roda o app inteiro sobre `localStorage`, com 75 dias de histórico determinístico. Serve para validar com o cliente e para apresentar o projeto sem expor o banco. Sai do build de produção por tree-shaking.
 
 ## Testes
 
-Estratégia de cobertura, conforme a filosofia de teste do projeto:
+155 testes, nenhum mock de rede. A cobertura é proporcional ao risco, não uniforme:
 
-- **`domain/`**: cobertura profunda de todas as regras de negócio (venda, produção, ajustes, relatórios, dinheiro) — a maior parte dos testes vive aqui, sem mocks.
-- **`application/`**: um teste por caso de uso, usando `InMemoryRepository` como fake — inclui o caso de undo com receita alterada posteriormente. `SupabaseEstoqueRepository` (as chamadas RPC/REST reais) não tem teste automatizado — validado manualmente contra o projeto Supabase.
-- **`infra/`**: testes do adaptador de `localStorage` e das funções de backup/restauração.
-- **`ui/`**: um a dois fluxos completos com Testing Library, renderizando `AppShell` (o miolo da tela, sem login/rede) com `InMemoryRepository` injetado — mantém a UI testável contra a porta `EstoqueRepository`, não contra o adapter concreto. Não há testes de breakpoint/responsividade.
+- **`domain/`** — a maior parte. Todas as regras de negócio, sem mock e sem DOM.
+- **`application/`** — um teste por caso de uso sobre `InMemoryRepository`, incluindo o undo de produção cuja receita mudou depois.
+- **`infra/`** — adapter de `localStorage`, backup e restauração, seed da demonstração e a gravação real do `.xlsx`, lido de volta com `FileReader` e conferido célula a célula.
+- **`ui/`** — fluxos completos com Testing Library, renderizando `AppShell` com repositório injetado: a UI é testada contra a porta, nunca contra o adapter concreto. Inclui o caso da falha inesperada, que antes era silenciosa.
+
+O que deliberadamente **não** tem teste automatizado: as chamadas RPC reais do `SupabaseEstoqueRepository`, validadas contra o projeto de verdade, e responsividade por breakpoint.
+
+## Rodando
 
 ```bash
-npm test          # roda tudo uma vez
-npm run test:watch
+npm install
+npm run dev          # precisa de .env.local com as chaves do Supabase
+npm run dev:demo     # sem banco e sem login, dados no localStorage
+npm test
+npm run lint && npm run typecheck && npm run build
 ```
 
-## PWA e ícones
+Para uma instância nova: crie o projeto no Supabase, rode as três migrations de [`supabase/migrations/`](supabase/migrations/) na ordem, feche o cadastro público, crie o usuário compartilhado e preencha `.env.local` a partir de [`.env.example`](.env.example) com a URL e a chave `anon` (nunca a `service_role`). Cada passo, com o que conferir depois, está em [`docs/deploy.md`](docs/deploy.md).
 
-O app é instalável e funciona offline (em modo leitura, ver acima) via `vite-plugin-pwa` (Workbox, `generateSW` + `runtimeCaching` para as leituras do Supabase). O ícone de marca em `public/icons/icon.svg` é um **placeholder temporário** (monograma "L'" em dourado sobre fundo grafite) até que os ativos reais da identidade visual da L'AUREA sejam fornecidos.
+## Fora de escopo nesta versão
 
-## Fora de escopo
+Conta por pessoa, sincronização de escrita offline, gerenciador de estado externo, container de injeção de dependência, integração com WhatsApp e módulo financeiro. Cada ausência é escolha, não pendência: o app resolve o estoque de duas pessoas que fazem velas, e cresce por cadastro — aroma, recipiente e insumo novos entram pela própria tela, sem release.
 
-Contas por usuário (o login é compartilhado entre os dois dispositivos), sincronização de escritas feitas offline, Redux/gerenciador de estado externo, container de injeção de dependência, integração com WhatsApp, funcionalidades financeiras e gráficos — deliberadamente não incluídos nesta versão.
+---
+
+Desenvolvido por **Athos Enderle Puña** · [LinkedIn](https://www.linkedin.com/in/athos-enderle-puna-176480277/) · [GitHub](https://github.com/Athosep08)
+
+Código 100% gerado com IA, sob a minha direção técnica: arquitetura, decisões de modelagem, escopo e revisão.
