@@ -58,9 +58,23 @@ continuam lá.
 - [ ] Clique em **Resume project** (não precisa do Upgrade) e espere de 2 a
       5 minutos, até o painel normal voltar.
 
-Com o app em uso diário isso não acontece; o risco é só em períodos parados,
-como antes do lançamento. Se o app aparecer fora do ar depois de um tempo sem
-uso, é isso: entre no painel e clique em Resume de novo.
+Se o app aparecer fora do ar depois de um tempo sem uso, é isso: entre no
+painel e clique em Resume de novo.
+
+Para não depender disso, o repositório tem o job
+[`manter-supabase-acordado.yml`](../.github/workflows/manter-supabase-acordado.yml),
+que toca na API todo dia às 12:20 UTC e mantém o contador de inatividade
+zerado. Ele precisa de dois secrets no repositório (**Settings → Secrets and
+variables → Actions**):
+
+- `SUPABASE_URL` — a Project URL
+- `SUPABASE_ANON_KEY` — a chave `anon` (a mesma que vai no site)
+
+Se o job falhar, o GitHub manda e-mail: é o aviso de que o projeto pausou ou
+está fora do ar. Duas coisas a saber sobre ele: o GitHub desliga jobs agendados
+em repositório sem nenhuma atividade por 60 dias (chega um e-mail pedindo para
+reativar), e o horário agendado pode atrasar alguns minutos — para este uso,
+tanto faz.
 
 ### 1.1 Descobrir o que já foi aplicado
 
