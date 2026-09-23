@@ -8,8 +8,8 @@ Este README é a documentação técnica do projeto: as decisões que tomei, os 
 
 |                         |                                                                                |
 | ----------------------- | ------------------------------------------------------------------------------ |
-| Código                  | ~7.400 linhas de TypeScript `strict` + 741 de SQL                              |
-| Testes                  | 155 em 20 arquivos, sem mock de rede                                           |
+| Código                  | cerca de 7 mil linhas de TypeScript `strict` e 700 de SQL                      |
+| Testes                  | mais de 150, em 20 arquivos, sem mock de rede                                  |
 | Dados reais             | 24 insumos, 42 produtos (3 recipientes × 14 aromas), cada um com ficha própria |
 | Dependências de runtime | 4: `react`, `react-dom`, `@supabase/supabase-js`, `write-excel-file`           |
 
@@ -111,7 +111,7 @@ No iPhone com o app instalado na tela inicial, download direto não funciona de 
 
 ## Testes
 
-155 testes, nenhum mock de rede. A cobertura é proporcional ao risco, não uniforme:
+Mais de 150 testes, nenhum mock de rede. A cobertura é proporcional ao risco, não uniforme:
 
 - **`domain/`** — a maior parte. Todas as regras de negócio, sem mock e sem DOM.
 - **`application/`** — um teste por caso de uso sobre `InMemoryRepository`, incluindo o undo de produção cuja receita mudou depois.
